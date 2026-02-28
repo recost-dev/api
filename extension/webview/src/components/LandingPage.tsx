@@ -1,4 +1,5 @@
 import { LeafIcon } from "./LeafIcon";
+import { postMessage } from "../vscode";
 
 interface LandingPageProps {
   onStartScan: () => void;
@@ -51,6 +52,7 @@ export function LandingPage({ onStartScan }: LandingPageProps) {
         </button>
         <button
           className="eco-btn-primary"
+          onClick={() => postMessage({ type: "openDashboard" })}
           style={{ flex: 1, justifyContent: "center", height: "34px", padding: "0 12px", whiteSpace: "nowrap" }}
         >
           Open Dashboard

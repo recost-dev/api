@@ -78,9 +78,10 @@
     }
   },
   "scripts": {
-    "build": "npm run build:webview && npm run build:ext",
+    "build": "npm run build:dashboard && npm run build:webview && npm run build:ext",
     "build:ext": "node esbuild.mjs",
     "build:webview": "cd webview && npm run build",
+    "build:dashboard": "cd ../dashboard && VITE_LOCAL_MODE=true npm run build && rm -rf ../extension/dashboard-dist && cp -r dist ../extension/dashboard-dist",
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "cd webview && npm run build -- --watch",
     "package": "npx @vscode/vsce package --no-dependencies"

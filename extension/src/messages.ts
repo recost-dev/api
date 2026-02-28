@@ -3,6 +3,7 @@ import type { EndpointRecord, Suggestion, ScanSummary } from "./analysis/types";
 // Webview -> Host messages
 export type WebviewMessage =
   | { type: "startScan" }
+  | { type: "openDashboard" }
   | { type: "chat"; text: string; model: string }
   | { type: "setApiKey"; key: string }
   | { type: "modelChanged"; model: string }

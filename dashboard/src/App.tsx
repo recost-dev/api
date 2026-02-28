@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './layout/Layout';
 import { ThemeProvider } from './theme-context';
@@ -22,7 +22,9 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <ThemeProvider theme={galaxySunsetTheme}><Projects /></ThemeProvider>,
+    element: import.meta.env.VITE_LOCAL_MODE
+      ? <Navigate to="/projects/local" replace />
+      : <ThemeProvider theme={galaxySunsetTheme}><Projects /></ThemeProvider>,
   },
   {
     path: '/projects/:projectId',

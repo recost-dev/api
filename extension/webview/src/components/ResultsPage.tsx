@@ -418,6 +418,15 @@ export function ResultsPage({ suggestions, summary, endpoints }: ResultsPageProp
         >
           Chat
         </button>
+        <button
+          className="eco-btn-icon"
+          onClick={() => postMessage({ type: "openDashboard" })}
+          title="Open Dashboard"
+          style={{ marginLeft: "auto", padding: "0 8px", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}
+        >
+          <span className="codicon codicon-link-external" style={{ fontSize: "11px" }} />
+          Dashboard
+        </button>
       </div>
 
       {/* Findings — always mounted to preserve scroll position; hidden via display */}

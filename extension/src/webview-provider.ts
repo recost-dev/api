@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import { scanWorkspace, detectLocalWastePatterns } from "./scanner/workspace-scanner";
 import { createProject, submitScan, getAllEndpoints, getAllSuggestions } from "./api-client";
 import { buildSystemPrompt } from "./chat/prompts";
+import { LocalServer } from "./local-server";
 import type { WebviewMessage, HostMessage } from "./messages";
 import type { ApiCallInput, EndpointRecord, Suggestion, ScanSummary } from "./analysis/types";
 
@@ -318,6 +320,9 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
   private lastSummary: ScanSummary | null = null;
   private projectId: string | null = null;
 
+  // Local dashboard server
+  private localServer: LocalServer | null = null;
+
   // Chat state
   private chatHistory: ChatMessage[] = [];
 
@@ -396,6 +401,9 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
         break;
       case "openFile":
         await this.handleOpenFile(message.file, message.line);
+        break;
+      case "openDashboard":
+        await this.handleOpenDashboard();
         break;
     }
   }
@@ -797,6 +805,35 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     return false;
+  }
+
+  private async handleOpenDashboard() {
+    try {
+      const dashboardPath = path.join(this.context.extensionPath, "dashboard-dist");
+
+      if (!this.localServer) {
+        this.localServer = new LocalServer(dashboardPath, () => ({
+          endpoints: this.lastEndpoints,
+          suggestions: this.lastSuggestions,
+          summary: this.lastSummary,
+          workspaceName: this.getWorkspaceName(),
+        }));
+      }
+
+      if (!this.localServer.hasDistFiles()) {
+        this.postMessage({
+          type: "error",
+          message: "Dashboard not built yet. Run 'npm run build:dashboard' in the extension directory first.",
+        });
+        return;
+      }
+
+      const port = await this.localServer.start();
+      await vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}`));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to open dashboard";
+      this.postMessage({ type: "error", message });
+    }
   }
 
   private async handleOpenFile(file: string, line?: number) {
