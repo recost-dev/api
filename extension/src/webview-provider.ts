@@ -3,7 +3,7 @@ import { scanWorkspace, detectLocalWastePatterns } from "./scanner/workspace-sca
 import { createProject, submitScan, getAllEndpoints, getAllSuggestions } from "./api-client";
 import { buildSystemPrompt } from "./chat/prompts";
 import type { WebviewMessage, HostMessage } from "./messages";
-import type { EndpointRecord, Suggestion, ScanSummary } from "./analysis/types";
+import type { ApiCallInput, EndpointRecord, Suggestion, ScanSummary } from "./analysis/types";
 
 const MODELS = {
   "gpt-4o-mini": { id: "gpt-4o-mini", name: "GPT-4o Mini" },
@@ -171,6 +171,141 @@ function mergeLocalWasteFindings(
   return [...baseSuggestions, ...locals];
 }
 
+function inferProviderFromUrl(url: string): string {
+  if (url.startsWith("/")) return "internal";
+  const dynamicMatch = url.match(/^<dynamic:([^>]+)>$/);
+  if (dynamicMatch) {
+    const token = dynamicMatch[1];
+    if (/base_url|api/i.test(token)) return "dynamic-api";
+    return "dynamic";
+  }
+  const hostMatch = url.match(/^https?:\/\/([^\/]+)/i);
+  if (!hostMatch) return "unknown";
+  return hostMatch[1].replace(/^www\./, "");
+}
+
+const GENERIC_DYNAMIC_TOKENS = new Set(["endpoint", "url", "path", "uri", "route"]);
+const OUTBOUND_LIBRARIES = new Set([
+  "fetch",
+  "axios",
+  "got",
+  "superagent",
+  "ky",
+  "requests",
+  "http",
+  "HttpClient",
+  "$http",
+]);
+
+function isHighConfidenceEndpointUrl(url: string): boolean {
+  if (!url) return false;
+  if (/^https?:\/\//i.test(url)) return true;
+  if (url.startsWith("/")) return true;
+  if (/\$\{\s*(endpoint|url|path|uri|route)\s*\}/i.test(url)) return false;
+  const dynamic = url.match(/^<dynamic:([^>]+)>$/i);
+  if (!dynamic) return false;
+  const token = dynamic[1].trim().toLowerCase();
+  if (GENERIC_DYNAMIC_TOKENS.has(token)) return false;
+  return /base[_-]?url|api|endpoint/i.test(token);
+}
+
+function shouldSubmitRemote(call: ApiCallInput): boolean {
+  if (!OUTBOUND_LIBRARIES.has(call.library)) return false;
+  return isHighConfidenceEndpointUrl(call.url);
+}
+
+function shouldIncludeSynthetic(call: ApiCallInput): boolean {
+  if (!isHighConfidenceEndpointUrl(call.url)) return false;
+  if (call.library === "route-def" || call.library === "api-helper") return call.url.startsWith("/");
+  return true;
+}
+
+function mergeRemoteAndLocalEndpoints(
+  remote: EndpointRecord[],
+  localCalls: ApiCallInput[],
+  projectId: string,
+  scanId: string
+): EndpointRecord[] {
+  const merged = [...remote];
+  const byMethodUrl = new Map<string, EndpointRecord>();
+  for (const endpoint of merged) {
+    byMethodUrl.set(`${endpoint.method} ${endpoint.url}`, endpoint);
+  }
+
+  const syntheticByMethodUrl = new Map<string, EndpointRecord>();
+  for (const call of localCalls) {
+    if (!shouldIncludeSynthetic(call)) continue;
+    const key = `${call.method} ${call.url}`;
+    if (byMethodUrl.has(key)) {
+      const endpoint = byMethodUrl.get(key)!;
+      if (!endpoint.files.includes(call.file)) {
+        endpoint.files.push(call.file);
+      }
+      const hasSite = endpoint.callSites.some(
+        (site) => site.file === call.file && site.line === call.line && site.library === call.library
+      );
+      if (!hasSite) {
+        endpoint.callSites.push({
+          file: call.file,
+          line: call.line,
+          library: call.library,
+          frequency: call.frequency,
+        });
+      }
+      continue;
+    }
+
+    if (!syntheticByMethodUrl.has(key)) {
+      syntheticByMethodUrl.set(key, {
+        id: `local-${scanId}-${syntheticByMethodUrl.size + 1}`,
+        projectId,
+        scanId,
+        provider: inferProviderFromUrl(call.url),
+        method: call.method,
+        url: call.url,
+        files: [call.file],
+        callSites: [{
+          file: call.file,
+          line: call.line,
+          library: call.library,
+          frequency: call.frequency,
+        }],
+        callsPerDay: call.frequency === "per-request" ? 100 : call.library === "route-def" ? 0 : 1,
+        monthlyCost: 0,
+        status:
+          call.frequency === "per-request"
+            ? "n_plus_one_risk"
+            : call.library === "route-def"
+            ? "normal"
+            : "normal",
+      });
+      continue;
+    }
+
+    const synthetic = syntheticByMethodUrl.get(key)!;
+    if (!synthetic.files.includes(call.file)) {
+      synthetic.files.push(call.file);
+    }
+    const hasSite = synthetic.callSites.some(
+      (site) => site.file === call.file && site.line === call.line && site.library === call.library
+    );
+    if (!hasSite) {
+      synthetic.callSites.push({
+        file: call.file,
+        line: call.line,
+        library: call.library,
+        frequency: call.frequency,
+      });
+    }
+    if (call.frequency === "per-request") {
+      synthetic.status = "n_plus_one_risk";
+      synthetic.callsPerDay = Math.max(synthetic.callsPerDay, 100);
+    }
+  }
+
+  return [...merged, ...syntheticByMethodUrl.values()];
+}
+
 export class EcoSidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "eco.sidebarView";
 
@@ -303,29 +438,63 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       // Ensure we have a project on the remote API
-      const projectId = await this.getOrCreateProject();
+      let projectId = await this.getOrCreateProject();
 
       // Submit scan and fetch results
+      const remoteApiCalls = apiCalls.filter(shouldSubmitRemote);
+      if (remoteApiCalls.length === 0) {
+        const localProjectId = this.projectId ?? "local";
+        const localScanId = `local-${Date.now()}`;
+        const endpoints = mergeRemoteAndLocalEndpoints([], apiCalls, localProjectId, localScanId);
+        const mergedSuggestions = mergeLocalWasteFindings(
+          [],
+          localWasteFindings,
+          endpoints,
+          0,
+          localProjectId,
+          localScanId
+        );
+        const summary: ScanSummary = {
+          totalEndpoints: endpoints.length,
+          totalCallsPerDay: endpoints.reduce((sum, ep) => sum + ep.callsPerDay, 0),
+          totalMonthlyCost: 0,
+          highRiskCount: mergedSuggestions.filter((s) => s.severity === "high").length,
+        };
+
+        this.lastEndpoints = endpoints;
+        this.lastSuggestions = mergedSuggestions;
+        this.lastSummary = summary;
+        this.postMessage({
+          type: "scanResults",
+          endpoints,
+          suggestions: mergedSuggestions,
+          summary,
+        });
+        return;
+      }
+
       let scanResult;
       try {
-        scanResult = await submitScan(projectId, apiCalls);
+        scanResult = await submitScan(projectId, remoteApiCalls);
       } catch (err: unknown) {
         // Project may have been deleted — create a fresh one and retry once
         if ((err as { status?: number }).status === 404) {
           const freshId = await createProject(this.getWorkspaceName());
           this.projectId = freshId;
+          projectId = freshId;
           await this.context.globalState.update("eco.projectId", freshId);
-          scanResult = await submitScan(freshId, apiCalls);
+          scanResult = await submitScan(projectId, remoteApiCalls);
         } else {
           throw err;
         }
       }
 
-      const [endpoints, suggestions] = await Promise.all([
+      const [remoteEndpoints, suggestions] = await Promise.all([
         getAllEndpoints(projectId, scanResult.scanId),
         getAllSuggestions(projectId, scanResult.scanId),
       ]);
 
+      const endpoints = mergeRemoteAndLocalEndpoints(remoteEndpoints, apiCalls, projectId, scanResult.scanId);
       this.lastEndpoints = endpoints;
       const aggressiveSuggestions = buildAggressiveSuggestions(endpoints, suggestions);
       const mergedSuggestions = mergeLocalWasteFindings(
@@ -343,7 +512,10 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
         type: "scanResults",
         endpoints,
         suggestions: mergedSuggestions,
-        summary: scanResult.summary,
+        summary: {
+          ...scanResult.summary,
+          totalEndpoints: Math.max(scanResult.summary.totalEndpoints, endpoints.length),
+        },
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error during scan";

@@ -231,6 +231,8 @@ function SuggestionCard({
 function SeverityGroup({
   label,
   suggestions,
+  open,
+  onToggleGroup,
   expanded,
   onToggle,
   onAskAI,
@@ -238,6 +240,8 @@ function SeverityGroup({
 }: {
   label: string;
   suggestions: Suggestion[];
+  open: boolean;
+  onToggleGroup: () => void;
   expanded: Set<string>;
   onToggle: (id: string) => void;
   onAskAI: (s: Suggestion) => void;
@@ -254,28 +258,35 @@ function SeverityGroup({
 
   return (
     <div>
-      <div
+      <button
+        className="eco-section-header"
+        onClick={onToggleGroup}
         style={{
-          padding: "4px 12px",
-          fontSize: "10px",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
           color,
-          borderBottom: "1px solid var(--vscode-panel-border)",
+          justifyContent: "space-between",
+          borderBottom: open ? "1px solid var(--vscode-panel-border)" : "1px solid var(--vscode-panel-border)",
         }}
       >
-        {label}
-      </div>
-      {suggestions.map((s) => (
-        <SuggestionCard
-          key={s.id}
-          suggestion={s}
-          expanded={expanded.has(s.id)}
-          onToggle={() => onToggle(s.id)}
-          onAskAI={onAskAI}
-          target={resolveTarget(s)}
-        />
-      ))}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          <span
+            className="codicon codicon-chevron-right"
+            style={{ fontSize: "12px", transition: "transform 180ms ease", transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+          />
+          {label}
+        </span>
+        <span style={{ fontSize: "10px", opacity: 0.9 }}>{suggestions.length}</span>
+      </button>
+      {open &&
+        suggestions.map((s) => (
+          <SuggestionCard
+            key={s.id}
+            suggestion={s}
+            expanded={expanded.has(s.id)}
+            onToggle={() => onToggle(s.id)}
+            onAskAI={onAskAI}
+            target={resolveTarget(s)}
+          />
+        ))}
     </div>
   );
 }
@@ -362,6 +373,11 @@ export function ResultsPage({ suggestions, summary, endpoints }: ResultsPageProp
   const [tab, setTab] = useState<Tab>("findings");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chatContext, setChatContext] = useState<SuggestionContext | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<"HIGH" | "MEDIUM" | "LOW", boolean>>({
+    HIGH: true,
+    MEDIUM: true,
+    LOW: true,
+  });
 
   const toggleCard = (id: string) => {
     setExpanded((prev) => {
@@ -462,6 +478,8 @@ export function ResultsPage({ suggestions, summary, endpoints }: ResultsPageProp
               <SeverityGroup
                 label="HIGH"
                 suggestions={high}
+                open={openGroups.HIGH}
+                onToggleGroup={() => setOpenGroups((prev) => ({ ...prev, HIGH: !prev.HIGH }))}
                 expanded={expanded}
                 onToggle={toggleCard}
                 onAskAI={handleAskAI}
@@ -470,6 +488,8 @@ export function ResultsPage({ suggestions, summary, endpoints }: ResultsPageProp
               <SeverityGroup
                 label="MEDIUM"
                 suggestions={medium}
+                open={openGroups.MEDIUM}
+                onToggleGroup={() => setOpenGroups((prev) => ({ ...prev, MEDIUM: !prev.MEDIUM }))}
                 expanded={expanded}
                 onToggle={toggleCard}
                 onAskAI={handleAskAI}
@@ -478,6 +498,8 @@ export function ResultsPage({ suggestions, summary, endpoints }: ResultsPageProp
               <SeverityGroup
                 label="LOW"
                 suggestions={low}
+                open={openGroups.LOW}
+                onToggleGroup={() => setOpenGroups((prev) => ({ ...prev, LOW: !prev.LOW }))}
                 expanded={expanded}
                 onToggle={toggleCard}
                 onAskAI={handleAskAI}

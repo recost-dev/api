@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
 import { ApiCallInput } from "../analysis/types";
-import { matchLine, isInsideLoop } from "./patterns";
+import { matchLine, matchRouteDefinitionLine, isInsideLoop } from "./patterns";
 
-const MAX_FILES = 500;
-const WASTE_FILE_HINT = /(demo|mock|waste|leak|test|sandbox)/i;
+const MAX_FILES = 5000;
+const HTTP_CALL_HINT = /\b(fetch|axios|got|superagent|ky|requests|http\.|\$http)\b/i;
+const GENERIC_TEMPLATE_SEGMENT = /\$\{\s*(endpoint|url|path|uri|route)\s*\}/i;
 
 export interface LocalWasteFinding {
   id: string;
@@ -19,6 +20,24 @@ export interface ScanProgress {
   index: number;
   total: number;
   endpointsSoFar: number;
+}
+
+function isGenericDynamicUrl(url: string): boolean {
+  const dynamic = url.match(/^<dynamic:([^>]+)>$/i);
+  if (dynamic) {
+    const token = dynamic[1].trim().toLowerCase();
+    return ["endpoint", "url", "path", "uri", "route"].includes(token);
+  }
+  return false;
+}
+
+function isHighConfidenceUrl(url: string): boolean {
+  if (!url) return false;
+  if (/^https?:\/\//i.test(url)) return true;
+  if (url.startsWith("/")) return true;
+  if (GENERIC_TEMPLATE_SEGMENT.test(url)) return false;
+  if (/^<dynamic:/i.test(url)) return !isGenericDynamicUrl(url);
+  return false;
 }
 
 async function readUriText(uri: vscode.Uri): Promise<string> {
@@ -43,6 +62,8 @@ export async function scanWorkspace(
 
   const uris = await vscode.workspace.findFiles(includeGlob, excludeGlob, MAX_FILES);
   const allCalls: ApiCallInput[] = [];
+  const dedupe = new Set<string>();
+  const uniqueEndpointKeys = new Set<string>();
 
   for (let i = 0; i < uris.length; i++) {
     const uri = uris[i];
@@ -54,13 +75,36 @@ export async function scanWorkspace(
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
         const line = lines[lineIndex];
-        const matches = matchLine(line);
+        const routeMatches = matchRouteDefinitionLine(line);
+        for (const route of routeMatches) {
+          if (!isHighConfidenceUrl(route.url)) continue;
+          const key = `${relativePath}:${lineIndex + 1}:${route.method}:${route.url}:${route.library}`;
+          if (dedupe.has(key)) continue;
+          dedupe.add(key);
+          uniqueEndpointKeys.add(`${route.method} ${route.url}`);
+          allCalls.push({
+            file: relativePath,
+            line: lineIndex + 1,
+            method: route.method,
+            url: route.url,
+            library: route.library,
+            frequency: "daily",
+          });
+        }
+
+        let matches = matchLine(line);
+        if (matches.length === 0 && HTTP_CALL_HINT.test(line)) {
+          const multiLine = lines.slice(lineIndex, Math.min(lines.length, lineIndex + 6)).join("\n");
+          matches = matchLine(multiLine);
+        }
 
         for (const match of matches) {
+          if (!isHighConfidenceUrl(match.url)) continue;
+          const key = `${relativePath}:${lineIndex + 1}:${match.method}:${match.url}:${match.library}`;
+          if (dedupe.has(key)) continue;
+          dedupe.add(key);
+          uniqueEndpointKeys.add(`${match.method} ${match.url}`);
           const inLoop = isInsideLoop(lines, lineIndex);
-          const snippetStart = Math.max(0, lineIndex - 2);
-          const snippetEnd = Math.min(lines.length - 1, lineIndex + 2);
-          const codeSnippet = lines.slice(snippetStart, snippetEnd + 1).join("\n");
           allCalls.push({
             file: relativePath,
             line: lineIndex + 1,
@@ -68,7 +112,6 @@ export async function scanWorkspace(
             url: match.url,
             library: match.library,
             frequency: inLoop ? "per-request" : "daily",
-            codeSnippet,
           });
         }
       }
@@ -80,7 +123,7 @@ export async function scanWorkspace(
       file: relativePath,
       index: i,
       total: uris.length,
-      endpointsSoFar: allCalls.length,
+      endpointsSoFar: uniqueEndpointKeys.size,
     });
   }
 
@@ -126,6 +169,9 @@ function detectInFile(file: FileContext): LocalWasteFinding[] {
   const findings: LocalWasteFinding[] = [];
   const { text } = file;
   const fetchCallCount = (text.match(/\bfetch\(/g) ?? []).length;
+  const axiosCallCount = (text.match(/\baxios(?:\.\w+)?\s*\(/g) ?? []).length;
+  const requestsCallCount = (text.match(/\brequests\.(get|post|put|patch|delete)\(/g) ?? []).length;
+  const totalHttpCallCount = fetchCallCount + axiosCallCount + requestsCallCount;
 
   if (has(/Promise\.all\([\s\S]{0,300}length:\s*streamCount/gi, text) && has(/streamCount\s*=\s*200/g, text)) {
     findings.push(
@@ -192,7 +238,7 @@ function detectInFile(file: FileContext): LocalWasteFinding[] {
     );
   }
 
-  if (fetchCallCount > 0 && !has(/cache|memo|dedupe|circuit breaker|breaker/gi, text)) {
+  if (totalHttpCallCount > 0 && !has(/cache|memo|dedupe|circuit breaker|breaker/gi, text)) {
     findings.push(
       makeFinding(
         file,
@@ -200,7 +246,20 @@ function detectInFile(file: FileContext): LocalWasteFinding[] {
         "cache",
         "medium",
         "Resilience/cost controls appear missing: no clear caching, deduplication, or circuit breaker behavior was detected near frequent API calls.",
-        /\bfetch\(/
+        /\b(fetch|axios|requests)\b/
+      )
+    );
+  }
+
+  if (has(/Promise\.all\([\s\S]{0,500}\.map\(/gi, text) && has(/\b(fetch|axios|got|superagent|ky)\b/gi, text)) {
+    findings.push(
+      makeFinding(
+        file,
+        "local-bulk-parallel-call-map",
+        "n_plus_one",
+        "medium",
+        "Potential request burst detected: Promise.all with map over API calls can create fan-out under load without throttling.",
+        /Promise\.all\([\s\S]{0,500}\.map\(/
       )
     );
   }
@@ -331,9 +390,7 @@ export async function detectLocalWastePatterns(): Promise<LocalWasteFinding[]> {
       const lines = text.split("\n");
       const file: FileContext = { path: relativePath, text, lines };
 
-      if (WASTE_FILE_HINT.test(relativePath) || /noisyApiCall|runWastefulStream|projectedWasteReport/.test(text)) {
-        findings.push(...detectInFile(file));
-      }
+      findings.push(...detectInFile(file));
     } catch {
       // Skip files that can't be read
     }
