@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_LOCAL_MODE ? "" : "https://api.ecoapi.dev";
+const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || location.origin;
 
 export class ApiError extends Error {
   code: string;
