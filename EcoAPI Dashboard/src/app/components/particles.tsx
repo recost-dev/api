@@ -5,17 +5,26 @@ interface Particle {
   x: number;
   y: number;
   size: number;
-  speedX: number;
-  speedY: number;
+  vx: number;
+  vy: number;
   opacity: number;
   fadeDir: number;
-  amplitude: number;
-  frequency: number;
   time: number;
+  color: string;
+}
+
+interface Ripple {
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  alpha: number;
+  color: string;
 }
 
 export function Particles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
   const theme = useTheme();
 
   useEffect(() => {
@@ -26,66 +35,132 @@ export function Particles() {
 
     let animId: number;
     const particles: Particle[] = [];
-    const count = 60;
+    const ripples: Ripple[] = [];
+    const count = 70;
+    const attractRadius = 150;
+    const scatterRadius = 200;
 
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
     resize();
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const cx = e.clientX;
+      const cy = e.clientY;
+
+      // Scatter nearby particles outward
+      for (const p of particles) {
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < scatterRadius && dist > 0) {
+          const force = ((scatterRadius - dist) / scatterRadius) * 3.5;
+          const angle = Math.atan2(dy, dx);
+          p.vx += Math.cos(angle) * force;
+          p.vy += Math.sin(angle) * force;
+        }
+      }
+
+      // Spawn ripple ring
+      ripples.push({
+        x: cx,
+        y: cy,
+        radius: 0,
+        maxRadius: scatterRadius * 0.6,
+        alpha: 0.5,
+        color: theme.particleColors[0].match(/\d+/g)?.slice(0, 3).join(',') || '255,255,255',
+      });
+    };
+
     window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('click', handleClick);
 
     for (let i = 0; i < count; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: Math.random() * 2.5 + 0.5,
-        speedX: (Math.random() - 0.5) * 0.4,
-        speedY: (Math.random() - 0.5) * 0.2 - 0.05,
-        opacity: Math.random() * 0.4,
+        size: Math.random() * 2 + 0.5,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        opacity: Math.random() * 0.5,
         fadeDir: Math.random() > 0.5 ? 1 : -1,
-        amplitude: Math.random() * 1.5,
-        frequency: Math.random() * 0.02,
         time: Math.random() * 100,
+        color: theme.particleColors[Math.floor(Math.random() * theme.particleColors.length)],
       });
     }
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // Draw ripples
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += 4;
+        r.alpha -= 0.015;
+        if (r.alpha <= 0 || r.radius >= r.maxRadius) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${r.color}, ${r.alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Draw particles
       for (const p of particles) {
+        // Natural wandering
         p.time += 0.01;
-        p.x += p.speedX + Math.sin(p.time * 2) * 0.1;
-        p.y += p.speedY + Math.cos(p.time * 3) * 0.05;
-        p.opacity += p.fadeDir * 0.0015;
+        p.vx += Math.sin(p.time) * 0.01;
+        p.vy += Math.cos(p.time) * 0.01;
 
-        if (p.opacity > 0.5) p.fadeDir = -1;
-        if (p.opacity < 0.01) p.fadeDir = 1;
+        // Attract toward cursor
+        const dx = mouseRef.current.x - p.x;
+        const dy = mouseRef.current.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < attractRadius) {
+          const force = (attractRadius - dist) / attractRadius;
+          const angle = Math.atan2(dy, dx);
+          p.vx += Math.cos(angle) * force * 0.05;
+          p.vy += Math.sin(angle) * force * 0.05;
+        }
 
-        if (p.x < -20) p.x = canvas.width + 20;
-        if (p.x > canvas.width + 20) p.x = -20;
-        if (p.y < -20) p.y = canvas.height + 20;
-        if (p.y > canvas.height + 20) p.y = -20;
+        // Damping
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.x += p.vx;
+        p.y += p.vy;
 
+        // Fade
+        p.opacity += p.fadeDir * 0.002;
+        if (p.opacity > 0.6) p.fadeDir = -1;
+        if (p.opacity < 0.1) p.fadeDir = 1;
+
+        // Screen wrap
+        if (p.x < -50) p.x = canvas.width + 50;
+        if (p.x > canvas.width + 50) p.x = -50;
+        if (p.y < -50) p.y = canvas.height + 50;
+        if (p.y > canvas.height + 50) p.y = -50;
+
+        // Glow halo
+        const rgb = p.color.match(/\d+/g)?.slice(0, 3).join(',') || '255,255,255';
         const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4);
-
-        const getColors = () => {
-          const c1 = theme.particleColors[0].match(/\d+/g)?.slice(0, 3).join(',') || '255,255,255';
-          const c2 = theme.particleColors[1].match(/\d+/g)?.slice(0, 3).join(',') || '255,255,255';
-          return [c1, c2];
-        };
-
-        const [base1, base2] = getColors();
-
-        gradient.addColorStop(0, `rgba(${base1}, ${p.opacity})`);
-        gradient.addColorStop(0.4, `rgba(${base2}, ${p.opacity * 0.4})`);
-        gradient.addColorStop(1, `rgba(${base2}, 0)`);
-
+        gradient.addColorStop(0, `rgba(${rgb}, ${p.opacity})`);
+        gradient.addColorStop(1, `rgba(${rgb}, 0)`);
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 4, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
 
+        // Core dot
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity * 1.5})`;
@@ -94,18 +169,16 @@ export function Particles() {
 
       animId = requestAnimationFrame(draw);
     };
+
     draw();
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('click', handleClick);
     };
   }, [theme]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 z-[2] pointer-events-none"
-    />
-  );
+  return <canvas ref={canvasRef} className="absolute inset-0 z-[2] pointer-events-none" />;
 }

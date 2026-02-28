@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion as Motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router';
 import { useTheme } from '../theme-context';
@@ -21,7 +22,7 @@ import {
 const FADE = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, delay, ease: 'easeOut' },
+  transition: { duration: 0.6, delay, ease: 'easeOut' as const },
 });
 
 function Section({
@@ -143,7 +144,7 @@ export default function About() {
           <Section
             icon={Server}
             badge="REST API"
-            title="EcoAPI Backend"
+            title="EcoApi Backend"
             subtitle="Cloudflare Workers · Hono · D1 SQLite"
             description="The core engine. Send a list of API calls found in your codebase and EcoAPI analyses them — detecting redundant calls, N+1 patterns, cacheable endpoints, batch opportunities, and rate-limit risks. It calculates monthly cost estimates per provider, groups endpoints by file or provider, and generates actionable optimization suggestions with code fixes."
             features={[
@@ -158,14 +159,14 @@ export default function About() {
           <Section
             icon={PuzzleIcon}
             badge="IDE Extension"
-            title="VS Code Extension"
-            subtitle="Scan directly from your editor"
-            description="Install the EcoApi extension and scan your entire workspace without leaving VS Code. The extension scans all TypeScript, JavaScript, Python, Go, and Ruby files, detects API calls using regex patterns across popular HTTP libraries (fetch, axios, requests, got), and sends them to the EcoAPI backend for analysis. Results appear in a sidebar panel with findings, suggestions, and an AI chat assistant."
+            title="IDE Extension"
+            subtitle="VS Code Extension Host · TypeScript · Webview UI"
+            description="Install the EcoApi extension and scan your entire workspace without leaving your editor. Because EcoApi is built on the VS Code extension host, it runs natively in any compatible editor — VS Code, Cursor, Windsurf, and more. The extension scans TypeScript, JavaScript, Python, Go, and Ruby files, detects API calls using regex patterns across popular HTTP libraries (fetch, axios, requests, got), and sends them to the EcoAPI backend for analysis. Results appear in a sidebar panel with findings, suggestions, and an AI chat assistant."
             features={[
               { icon: Zap, label: 'One-click scan', desc: 'Scan your workspace instantly from the sidebar' },
               { icon: AlertTriangle, label: 'Inline findings', desc: 'Severity-grouped suggestions with code fix previews' },
               { icon: MessageSquare, label: 'AI chat', desc: 'Ask GPT-4o about any endpoint or suggestion' },
-              { icon: Globe, label: 'Multi-language', desc: 'TS, JS, Python, Go, Ruby — 500 file limit per scan' },
+              { icon: Globe, label: 'Extension host compatible', desc: 'VS Code, Cursor, Windsurf — any host-compatible editor' },
             ]}
             delay={0.2}
           />
@@ -175,7 +176,7 @@ export default function About() {
             badge="Web Dashboard"
             title="EcoApi Dashboard"
             subtitle="React · TanStack Query · Tailwind CSS"
-            description="This web app. Manage multiple projects, view full cost breakdowns, explore the API dependency graph, read optimization suggestions with estimated savings, and re-run scans with new API call data. Every page fetches live data from the EcoAPI backend — nothing is hardcoded."
+            description="This web app. Manage multiple projects, view full cost breakdowns, explore the API dependency graph, read optimization suggestions with estimated savings, and re-run scans with new API call data. Every page fetches live data from the EcoAPI backend"
             features={[
               { icon: LayoutDashboard, label: 'Project dashboard', desc: 'Eco Score gauge, stat cards, provider cost bars' },
               { icon: Server, label: 'Endpoints explorer', desc: 'Filter by provider, status, or HTTP method' },
