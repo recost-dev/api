@@ -280,7 +280,7 @@ export function LandingPage() {
               animate={{ opacity: 1, letterSpacing: '0.25em' }}
               transition={{ duration: 1.5, delay: 0.8, ease: 'easeOut' }}
             >
-              Clean Code &bull; Low Costs
+              Cleaner Code &bull; Lower Costs
             </Motion.p>
 
             {/* CTA Buttons */}
