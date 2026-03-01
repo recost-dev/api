@@ -495,7 +495,7 @@ export function ResultsPage({
           className="eco-btn-icon"
           onClick={() => postMessage({ type: "openDashboard" })}
           title="Open Dashboard"
-          style={{ marginLeft: "auto", padding: "0 8px", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}
+          style={{ marginLeft: "auto", padding: "0 12px 0 8px", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}
         >
           Dashboard
         </button>
