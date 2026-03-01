@@ -553,32 +553,7 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
 
       this.postMessage({ type: "scanComplete" });
 
-      if (apiCalls.length === 0) {
-        this.lastEndpoints = [];
-        this.lastSuggestions = [];
-        this.lastSummary = {
-          totalEndpoints: 0,
-          totalCallsPerDay: 0,
-          totalMonthlyCost: 0,
-          highRiskCount: 0,
-        };
-        this.postMessage({
-          type: "scanResults",
-          endpoints: [],
-          suggestions: [],
-          summary: this.lastSummary,
-        });
-        return;
-      }
-
-      // Ensure we have a project on the remote API
-      let projectId = await this.getOrCreateProject();
-
-      // Submit scan and fetch results
-      const remoteApiCalls = apiCalls.filter(shouldSubmitRemote);
-      if (remoteApiCalls.length === 0) {
-        const localProjectId = this.projectId ?? "local";
-        const localScanId = `local-${Date.now()}`;
+      const publishLocalOnlyResults = (localProjectId: string, localScanId: string) => {
         const endpoints = mergeRemoteAndLocalEndpoints([], apiCalls, localProjectId, localScanId);
         const mergedSuggestions = mergeLocalWasteFindings(
           [],
@@ -604,54 +579,90 @@ export class EcoSidebarProvider implements vscode.WebviewViewProvider {
           suggestions: mergedSuggestions,
           summary,
         });
+      };
+
+      if (apiCalls.length === 0) {
+        this.lastEndpoints = [];
+        this.lastSuggestions = [];
+        this.lastSummary = {
+          totalEndpoints: 0,
+          totalCallsPerDay: 0,
+          totalMonthlyCost: 0,
+          highRiskCount: 0,
+        };
+        this.postMessage({
+          type: "scanResults",
+          endpoints: [],
+          suggestions: [],
+          summary: this.lastSummary,
+        });
         return;
       }
 
-      let scanResult;
-      try {
-        scanResult = await submitScan(projectId, remoteApiCalls);
-      } catch (err: unknown) {
-        // Project may have been deleted — create a fresh one and retry once
-        if ((err as { status?: number }).status === 404) {
-          const freshId = await createProject(this.getWorkspaceName());
-          this.projectId = freshId;
-          projectId = freshId;
-          await this.context.globalState.update("eco.projectId", freshId);
-          scanResult = await submitScan(projectId, remoteApiCalls);
-        } else {
-          throw err;
-        }
+      // Ensure we have a project on the remote API
+      let projectId = await this.getOrCreateProject();
+
+      // Submit scan and fetch results
+      const remoteApiCalls = apiCalls.filter(shouldSubmitRemote);
+      if (remoteApiCalls.length === 0) {
+        publishLocalOnlyResults(this.projectId ?? "local", `local-${Date.now()}`);
+        return;
       }
 
-      const [remoteEndpoints, suggestions] = await Promise.all([
-        getAllEndpoints(projectId, scanResult.scanId),
-        getAllSuggestions(projectId, scanResult.scanId),
-      ]);
-      const taggedRemoteSuggestions = suggestions.map((s) => ({ ...s, source: s.source ?? "remote" }));
+      try {
+        let scanResult;
+        try {
+          scanResult = await submitScan(projectId, remoteApiCalls);
+        } catch (err: unknown) {
+          // Project may have been deleted, create a fresh one and retry once.
+          if ((err as { status?: number }).status === 404) {
+            const freshId = await createProject(this.getWorkspaceName());
+            this.projectId = freshId;
+            projectId = freshId;
+            await this.context.globalState.update("eco.projectId", freshId);
+            scanResult = await submitScan(projectId, remoteApiCalls);
+          } else {
+            throw err;
+          }
+        }
 
-      const endpoints = mergeRemoteAndLocalEndpoints(remoteEndpoints, apiCalls, projectId, scanResult.scanId);
-      this.lastEndpoints = endpoints;
-      const aggressiveSuggestions = buildAggressiveSuggestions(endpoints, taggedRemoteSuggestions);
-      const mergedSuggestions = mergeLocalWasteFindings(
-        aggressiveSuggestions,
-        localWasteFindings,
-        endpoints,
-        scanResult.summary.totalMonthlyCost,
-        projectId,
-        scanResult.scanId
-      );
-      this.lastSuggestions = mergedSuggestions;
-      this.lastSummary = scanResult.summary;
+        const [remoteEndpoints, suggestions] = await Promise.all([
+          getAllEndpoints(projectId, scanResult.scanId),
+          getAllSuggestions(projectId, scanResult.scanId),
+        ]);
+        const taggedRemoteSuggestions = suggestions.map((s) => ({ ...s, source: s.source ?? "remote" }));
 
-      this.postMessage({
-        type: "scanResults",
-        endpoints,
-        suggestions: mergedSuggestions,
-        summary: {
-          ...scanResult.summary,
-          totalEndpoints: Math.max(scanResult.summary.totalEndpoints, endpoints.length),
-        },
-      });
+        const endpoints = mergeRemoteAndLocalEndpoints(remoteEndpoints, apiCalls, projectId, scanResult.scanId);
+        this.lastEndpoints = endpoints;
+        const aggressiveSuggestions = buildAggressiveSuggestions(endpoints, taggedRemoteSuggestions);
+        const mergedSuggestions = mergeLocalWasteFindings(
+          aggressiveSuggestions,
+          localWasteFindings,
+          endpoints,
+          scanResult.summary.totalMonthlyCost,
+          projectId,
+          scanResult.scanId
+        );
+        this.lastSuggestions = mergedSuggestions;
+        this.lastSummary = scanResult.summary;
+
+        this.postMessage({
+          type: "scanResults",
+          endpoints,
+          suggestions: mergedSuggestions,
+          summary: {
+            ...scanResult.summary,
+            totalEndpoints: Math.max(scanResult.summary.totalEndpoints, endpoints.length),
+          },
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Remote analysis failed";
+        publishLocalOnlyResults(this.projectId ?? projectId ?? "local", `local-${Date.now()}`);
+        this.postMessage({
+          type: "error",
+          message: `Remote analysis failed: ${message}. Showing local-only results.`,
+        });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error during scan";
       this.postMessage({ type: "error", message });
@@ -1414,3 +1425,4 @@ function getNonce(): string {
   }
   return text;
 }
+

@@ -15,6 +15,7 @@ export default function App() {
   const [scanIndex, setScanIndex] = useState(0);
   const [scanTotal, setScanTotal] = useState(0);
   const [endpointCount, setEndpointCount] = useState(0);
+  const [scanError, setScanError] = useState("");
 
   // Results state
   const [endpoints, setEndpoints] = useState<EndpointRecord[]>([]);
@@ -35,6 +36,7 @@ export default function App() {
     setScanIndex(0);
     setScanTotal(0);
     setEndpointCount(0);
+    setScanError("");
     setAiReviewRunning(false);
     setAiReviewStage("");
     setAiReviewError("");
@@ -84,6 +86,7 @@ export default function App() {
           setEndpoints(msg.endpoints);
           setSuggestions(msg.suggestions);
           setSummary(msg.summary);
+          setScanError("");
           setTimeout(() => setScreen("results"), 300);
           break;
 
@@ -106,7 +109,7 @@ export default function App() {
 
         case "error":
           if (screen === "scanning") {
-            setScreen("landing");
+            setScanError(msg.message);
           }
           break;
       }
@@ -125,6 +128,7 @@ export default function App() {
           currentIndex={scanIndex}
           endpointCount={endpointCount}
           total={scanTotal}
+          error={scanError}
         />
       )}
       {screen === "results" && (

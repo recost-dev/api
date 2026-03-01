@@ -5,9 +5,10 @@ interface ScanningPageProps {
   currentIndex: number;
   endpointCount: number;
   total: number;
+  error?: string;
 }
 
-export function ScanningPage({ files, currentIndex, endpointCount, total }: ScanningPageProps) {
+export function ScanningPage({ files, currentIndex, endpointCount, total, error }: ScanningPageProps) {
   const progress = total > 0 ? ((currentIndex + 1) / total) * 100 : 0;
   const currentFile = files[currentIndex] || "";
 
@@ -25,7 +26,6 @@ export function ScanningPage({ files, currentIndex, endpointCount, total }: Scan
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: "320px" }}>
         <LeafIcon size={36} animated />
 
-        {/* Progress bar */}
         <div
           style={{
             width: "100%",
@@ -45,7 +45,6 @@ export function ScanningPage({ files, currentIndex, endpointCount, total }: Scan
           />
         </div>
 
-        {/* Current file */}
         <p
           style={{
             marginTop: "10px",
@@ -60,10 +59,14 @@ export function ScanningPage({ files, currentIndex, endpointCount, total }: Scan
           {currentFile}
         </p>
 
-        {/* Counter */}
         <p style={{ marginTop: "20px", color: "var(--vscode-descriptionForeground)" }}>
-          {endpointCount > 0 ? `${endpointCount} endpoints found` : "Scanning…"}
+          {endpointCount > 0 ? `${endpointCount} endpoints found` : "Scanning..."}
         </p>
+        {error && (
+          <p style={{ marginTop: "8px", color: "var(--vscode-errorForeground)", fontSize: "11px", textAlign: "center" }}>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
