@@ -129,9 +129,9 @@ export function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 1, ease: 'easeOut' }}
             >
-              {/* Primary: Dashboard → /projects */}
+              {/* Primary: Extension → /extension */}
               <button
-                onClick={() => navigate('/projects')}
+                onClick={() => navigate('/extension')}
                 className="relative group px-8 py-3.5 rounded-full overflow-hidden transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
@@ -144,11 +144,11 @@ export function LandingPage() {
                   style={{ boxShadow: `0 0 30px ${theme.btnShadow}` }}
                 />
                 <span className="relative z-10 text-white tracking-wider" style={{ fontSize: '0.9rem', fontWeight: 500 }}>
-                  Dashboard
+                  Extension
                 </span>
               </button>
 
-              {/* Secondary: Docs → /docs */}
+              {/* Secondary: API → /docs */}
               <button
                 onClick={() => navigate('/docs')}
                 className="px-8 py-3.5 rounded-full border transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
@@ -162,7 +162,7 @@ export function LandingPage() {
                   borderColor: 'rgba(255,255,255,0.3)',
                 }}
               >
-                Docs
+                API
               </button>
             </Motion.div>
           </div>
@@ -280,11 +280,11 @@ export function LandingPage() {
           {/* CTA */}
           <Motion.div {...FADE(0.5)} className="flex flex-col items-center mt-10">
             <button
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate('/extension')}
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-white text-[15px] transition-all hover:-translate-y-0.5"
               style={{ background: `linear-gradient(to right, ${theme.btnGradient[0]}, ${theme.btnGradient[1]})`, fontFamily: "'Inter', sans-serif", fontWeight: 500 }}
             >
-              Dashboard
+              Extension
               <ArrowRight size={16} />
             </button>
           </Motion.div>

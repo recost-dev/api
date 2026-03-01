@@ -189,11 +189,11 @@ export default function About() {
           {/* CTA */}
           <Motion.div {...FADE(0.4)} className="text-center pt-4">
             <button
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate('/extension')}
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full text-white text-[15px] transition-all hover:-translate-y-0.5"
               style={{ background: `linear-gradient(to right, ${theme.btnGradient[0]}, ${theme.btnGradient[1]})`, fontFamily: "'Inter', sans-serif", fontWeight: 500 }}
             >
-              Dashboard
+              Extension
               <ArrowRight size={16} />
             </button>
           </Motion.div>
