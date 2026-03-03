@@ -11,17 +11,15 @@ REST API for analyzing codebase API call patterns, estimating costs, and generat
 
 ## Setup
 
-1. `cd api && npm install`
+1. `npm install`
 2. Create D1 database: `npx wrangler d1 create eco-db`
-3. Paste the returned `database_id` into `api/wrangler.toml`
+3. Paste the returned `database_id` into `wrangler.toml`
 4. Create KV namespace: `npx wrangler kv namespace create rate-limit`
-5. Paste the returned `id` and `preview_id` into `api/wrangler.toml` under `[[kv_namespaces]]`
+5. Paste the returned `id` and `preview_id` into `wrangler.toml` under `[[kv_namespaces]]`
 6. Apply migrations: `npm run db:migrate:local`
 7. Start dev server: `npm run dev`
 
 ## Commands
-
-Run from the `api/` directory:
 
 | Command | Description |
 |---------|-------------|
@@ -34,29 +32,27 @@ Run from the `api/` directory:
 ## Project Structure
 
 ```
-api/
-  src/
-    index.ts            # Workers entry point (Hono app, export default)
-    env.ts              # Shared Env/Variables/AppContext types
-    config/
-      pricing.ts        # Provider pricing & keyword detection
-    middleware/         # Hono middleware (cors, logging, content-type, error handler)
-    models/
-      types.ts          # TypeScript domain types
-    routes/             # Route handlers (health, projects, providers)
-    services/
-      analysis-service.ts    # Core analysis engine (pure, sync)
-      project-service.ts     # All CRUD via D1 (async)
-      provider-service.ts    # Provider config lookups
-      validation-service.ts  # Input validation
-    utils/              # AppError, pagination, sort helpers
-  migrations/
-    0001_schema.sql     # D1 table definitions
-    0002_seed.sql       # Demo project seed data
-  wrangler.toml
-  package.json
-  tsconfig.json
-eco-extension/          # VSCode extension (see eco-extension/)
+src/
+  index.ts            # Workers entry point (Hono app, export default)
+  env.ts              # Shared Env/Variables/AppContext types
+  config/
+    pricing.ts        # Provider pricing & keyword detection
+  middleware/         # Hono middleware (cors, logging, content-type, error handler)
+  models/
+    types.ts          # TypeScript domain types
+  routes/             # Route handlers (health, projects, providers)
+  services/
+    analysis-service.ts    # Core analysis engine (pure, sync)
+    project-service.ts     # All CRUD via D1 (async)
+    provider-service.ts    # Provider config lookups
+    validation-service.ts  # Input validation
+  utils/              # AppError, pagination, sort helpers
+migrations/
+  0001_schema.sql     # D1 table definitions
+  0002_seed.sql       # Demo project seed data
+wrangler.toml
+package.json
+tsconfig.json
 ```
 
 ## Architecture Notes
@@ -77,5 +73,5 @@ eco-extension/          # VSCode extension (see eco-extension/)
 ## D1 Schema
 
 Tables: `projects`, `scans`, `endpoints`, `suggestions`
-- See [api/migrations/0001_schema.sql](api/migrations/0001_schema.sql) for full schema
+- See [migrations/0001_schema.sql](migrations/0001_schema.sql) for full schema
 - Numeric costs stored as `REAL`; arrays/objects stored as JSON `TEXT`
