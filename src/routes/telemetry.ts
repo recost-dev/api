@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../env";
 import { AppError } from "../utils/app-error";
 import { validateTelemetryInput } from "../services/validation-service";
-import { getAnalytics, ingestTelemetry } from "../services/telemetry-service";
+import { getAnalytics, getRecentWindows, ingestTelemetry } from "../services/telemetry-service";
 
 const app = new Hono<AppContext>();
 
@@ -59,6 +59,24 @@ app.get("/projects/:id/analytics", async (c) => {
   });
 
   return c.json({ data: result });
+});
+
+app.get("/projects/:id/telemetry/recent", async (c) => {
+  const query = c.req.query();
+
+  const limitRaw = query.limit !== undefined ? Number(query.limit) : 10;
+  if (!Number.isInteger(limitRaw) || limitRaw < 1 || limitRaw > 50) {
+    throw new AppError("VALIDATION_ERROR", "Invalid query params", 422, {
+      fields: [{ field: "limit", message: "limit must be an integer between 1 and 50." }]
+    });
+  }
+
+  const windows = await getRecentWindows(c.env.DB, c.req.param("id"), {
+    limit: limitRaw,
+    ...(query.environment !== undefined ? { environment: query.environment } : {})
+  });
+
+  return c.json({ data: windows });
 });
 
 export default app;

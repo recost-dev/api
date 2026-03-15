@@ -3,7 +3,9 @@ import {
   AnalyticsResponse,
   AnalyticsSummary,
   AnalyticsTopProvider,
-  TelemetryWindowInput
+  TelemetryWindowInput,
+  WindowSummary,
+  WindowSummaryMetric
 } from "../models/types";
 import { notFound } from "../utils/app-error";
 
@@ -343,4 +345,126 @@ const buildSummary = (data: AnalyticsDataRow[]): AnalyticsSummary => {
     .slice(0, 10);
 
   return { totalRequests, totalErrors, totalCostCents, topProviders };
+};
+
+// ---------------------------------------------------------------------------
+// Recent windows (for VS Code extension)
+// ---------------------------------------------------------------------------
+
+interface RawRecentWindow {
+  id: string;
+  project_id: string;
+  environment: string;
+  sdk_language: string;
+  sdk_version: string;
+  window_start: string;
+  window_end: string;
+  created_at: string;
+}
+
+interface RawRecentMetric {
+  window_id: string;
+  provider: string;
+  endpoint: string;
+  method: string;
+  request_count: number;
+  error_count: number;
+  total_latency_ms: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  total_request_bytes: number;
+  total_response_bytes: number;
+  estimated_cost_cents: number;
+}
+
+interface RecentWindowsParams {
+  limit?: number;
+  environment?: string;
+}
+
+export const getRecentWindows = async (
+  DB: D1Database,
+  projectId: string,
+  params: RecentWindowsParams = {}
+): Promise<WindowSummary[]> => {
+  const project = await DB.prepare("SELECT id FROM projects WHERE id = ?")
+    .bind(projectId)
+    .first<{ id: string }>();
+  if (!project) throw notFound("Project", projectId);
+
+  const limit = Math.min(params.limit ?? 10, 50);
+
+  const windowClauses: string[] = ["project_id = ?"];
+  const windowBinds: unknown[] = [projectId];
+
+  if (params.environment !== undefined) {
+    windowClauses.push("environment = ?");
+    windowBinds.push(params.environment);
+  }
+
+  const windowSql = `
+    SELECT id, project_id, environment, sdk_language, sdk_version,
+           window_start, window_end, created_at
+    FROM telemetry_windows
+    WHERE ${windowClauses.join(" AND ")}
+    ORDER BY window_start DESC
+    LIMIT ?`;
+
+  windowBinds.push(limit);
+
+  const { results: windowRows } = await DB.prepare(windowSql)
+    .bind(...windowBinds)
+    .all<RawRecentWindow>();
+
+  if (windowRows.length === 0) {
+    return [];
+  }
+
+  const windowIds = windowRows.map((w) => w.id);
+  const placeholders = windowIds.map(() => "?").join(", ");
+
+  const { results: metricRows } = await DB.prepare(
+    `SELECT window_id, provider, endpoint, method,
+            request_count, error_count, total_latency_ms,
+            p50_latency_ms, p95_latency_ms,
+            total_request_bytes, total_response_bytes,
+            estimated_cost_cents
+     FROM telemetry_metrics
+     WHERE window_id IN (${placeholders})`
+  )
+    .bind(...windowIds)
+    .all<RawRecentMetric>();
+
+  const metricsByWindow = new Map<string, WindowSummaryMetric[]>();
+  for (const wid of windowIds) {
+    metricsByWindow.set(wid, []);
+  }
+  for (const m of metricRows) {
+    const avgLatencyMs =
+      m.request_count > 0 ? Math.round(m.total_latency_ms / m.request_count) : 0;
+    metricsByWindow.get(m.window_id)!.push({
+      provider: m.provider,
+      endpoint: m.endpoint,
+      method: m.method,
+      requestCount: m.request_count,
+      errorCount: m.error_count,
+      avgLatencyMs,
+      p95LatencyMs: m.p95_latency_ms ?? 0,
+      totalRequestBytes: m.total_request_bytes ?? 0,
+      totalResponseBytes: m.total_response_bytes ?? 0,
+      estimatedCostCents: m.estimated_cost_cents
+    });
+  }
+
+  return windowRows.map((w) => ({
+    windowId: w.id,
+    projectId: w.project_id,
+    environment: w.environment,
+    sdkLanguage: w.sdk_language,
+    sdkVersion: w.sdk_version,
+    windowStart: w.window_start,
+    windowEnd: w.window_end,
+    createdAt: w.created_at,
+    metrics: metricsByWindow.get(w.id) ?? []
+  }));
 };

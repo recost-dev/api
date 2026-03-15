@@ -239,3 +239,28 @@ export interface AnalyticsResponse {
   summary: AnalyticsSummary;
 }
 
+export interface WindowSummaryMetric {
+  provider: string;
+  endpoint: string;
+  method: string;
+  requestCount: number;
+  errorCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  totalRequestBytes: number;
+  totalResponseBytes: number;
+  estimatedCostCents: number;
+}
+
+export interface WindowSummary {
+  windowId: string;
+  projectId: string;
+  environment: string;
+  sdkLanguage: string;
+  sdkVersion: string;
+  windowStart: string;
+  windowEnd: string;
+  createdAt: string;
+  metrics: WindowSummaryMetric[];
+}
+
