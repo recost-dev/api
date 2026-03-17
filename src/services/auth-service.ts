@@ -141,3 +141,90 @@ export async function getUserById(db: D1Database, id: string): Promise<User> {
 
   return toUser(row);
 }
+
+// ---- API Key helpers ----
+
+interface RawApiKey {
+  id: string;
+  key_prefix: string;
+  name: string;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+function generateApiKey(): { key: string; keyPrefix: string } {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+  return { key: `eco_live_${hex}`, keyPrefix: hex.slice(0, 8) };
+}
+
+export async function hashApiKey(key: string): Promise<string> {
+  const encoded = new TextEncoder().encode(key);
+  const buf = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function createApiKey(
+  db: D1Database,
+  userId: string,
+  name: string
+): Promise<{ id: string; key_prefix: string; name: string; created_at: string; key: string }> {
+  const countRow = await db
+    .prepare("SELECT COUNT(*) as count FROM api_keys WHERE user_id = ?")
+    .bind(userId)
+    .first<{ count: number }>();
+
+  if ((countRow?.count ?? 0) >= 10) {
+    throw new AppError("KEY_LIMIT_EXCEEDED", "Maximum of 10 API keys per user", 409);
+  }
+
+  const { key, keyPrefix } = generateApiKey();
+  const keyHash = await hashApiKey(key);
+  const id = crypto.randomUUID();
+
+  await db
+    .prepare(
+      "INSERT INTO api_keys (id, user_id, key_hash, key_prefix, name) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(id, userId, keyHash, keyPrefix, name)
+    .run();
+
+  const row = await db
+    .prepare("SELECT id, key_prefix, name, last_used_at, created_at FROM api_keys WHERE id = ?")
+    .bind(id)
+    .first<RawApiKey>();
+
+  if (!row) throw new AppError("DATABASE_ERROR", "Failed to create API key", 500);
+
+  return { id: row.id, key_prefix: row.key_prefix, name: row.name, created_at: row.created_at, key };
+}
+
+export async function listApiKeys(
+  db: D1Database,
+  userId: string
+): Promise<Array<{ id: string; key_prefix: string; name: string; last_used_at: string | null; created_at: string }>> {
+  const rows = await db
+    .prepare(
+      "SELECT id, key_prefix, name, last_used_at, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC"
+    )
+    .bind(userId)
+    .all<RawApiKey>();
+
+  return rows.results.map(r => ({
+    id: r.id,
+    key_prefix: r.key_prefix,
+    name: r.name,
+    last_used_at: r.last_used_at,
+    created_at: r.created_at,
+  }));
+}
+
+export async function deleteApiKey(db: D1Database, userId: string, keyId: string): Promise<void> {
+  const result = await db
+    .prepare("DELETE FROM api_keys WHERE id = ? AND user_id = ?")
+    .bind(keyId, userId)
+    .run();
+
+  if (result.meta.changes === 0) throw notFound("ApiKey", keyId);
+}

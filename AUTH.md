@@ -27,6 +27,7 @@ Key decisions:
 - `projects.user_id` is **nullable** — existing seed data has no owner; a future migration will enforce NOT NULL
 - `key_hash` is stored (not the raw key); `key_prefix` is for display (e.g. `eco_abc123...`)
 - Index on `api_keys(key_hash)` for fast lookup during request auth
+- `api_keys.user_id` FK is `ON DELETE CASCADE` from `users` only — deleting an api_keys row does **not** cascade to projects or telemetry
 
 ---
 
@@ -43,9 +44,12 @@ Auth migrations start at **0005**. Next available: **0007**.
 
 ---
 
+## Completed
+
+- Google OAuth flow (callback, session/JWT issuance) — Issue 2
+- API key generation/list/revoke endpoints (`POST/GET/DELETE /auth/keys`) — Issue 3
+
 ## Pending / Not Yet Built
 
-- Google OAuth flow (callback, session/JWT issuance)
-- API key generation endpoint (create/list/revoke)
 - Auth middleware (validate Bearer token or API key on incoming requests)
 - Enforce `projects.user_id NOT NULL` (future migration after backfill)
