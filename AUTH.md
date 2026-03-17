@@ -43,9 +43,38 @@ Auth migrations start at **0005**. Next available: **0007**.
 
 ---
 
+## Built (Issue 2)
+
+**Google OAuth + JWT session** — `src/routes/auth.ts`
+
+| Route | Description |
+|---|---|
+| `GET /auth/google` | Builds Google OAuth URL, stores CSRF state in KV (`oauth:state:<uuid>`, TTL 300s), redirects. Rate limited 20/IP/hour via `rl:auth:ip:<ip>` KV key. |
+| `GET /auth/google/callback` | Validates state (single-use, deleted after check), exchanges code, upserts user, issues JWT, redirects to `https://ecoapi.dev/dashboard?token=<JWT>`. Error → `https://ecoapi.dev/auth/error?reason=denied`. |
+| `GET /auth/me` | Returns `{ data: User }` — requires JWT. |
+| `POST /auth/refresh` | Returns fresh JWT — requires JWT + `Content-Type: application/json`. |
+
+**JWT** (`src/services/auth-service.ts`, `jose` library):
+- Algorithm: HS256, signed with `JWT_SECRET` env var
+- Expiry: 7 days
+- Payload: `{ sub: userId, email }`
+- `verifyJwt` throws `AppError("UNAUTHORIZED", 401)` on any failure
+
+**Middleware** `src/middleware/jwt-auth.ts`:
+- Reads `Authorization: Bearer <token>`, calls `verifyJwt`, sets `c.set("userId", payload.sub)`
+- Apply per-route: `route.get("/path", requireJwt, handler)`
+
+**Google token exchange**: standard `fetch` POST to `https://oauth2.googleapis.com/token`, decodes `id_token` payload via base64 (no separate userinfo call, no signature verify needed since token received directly from Google).
+
+**User upsert**: `INSERT ... ON CONFLICT(google_id) DO UPDATE SET email, name, avatar_url` — never duplicate rows.
+
+**New env vars** (add to `wrangler.toml [vars]` for dev, `wrangler secret put` for prod):
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET`
+
+---
+
 ## Pending / Not Yet Built
 
-- Google OAuth flow (callback, session/JWT issuance)
 - API key generation endpoint (create/list/revoke)
-- Auth middleware (validate Bearer token or API key on incoming requests)
-- Enforce `projects.user_id NOT NULL` (future migration after backfill)
+- Enforce `projects.user_id NOT NULL` (future migration after data backfill)
+- Scope project access by `user_id` (currently projects are unscoped after auth)
