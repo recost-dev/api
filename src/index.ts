@@ -12,6 +12,7 @@ import projectRoutes from "./routes/projects";
 import providerRoutes from "./routes/providers";
 import chatRoutes from "./routes/chat";
 import telemetryRoutes from "./routes/telemetry";
+import authRoutes from "./routes/auth";
 import { runRollup } from "./services/rollup-service";
 import type { Env } from "./env";
 
@@ -38,6 +39,7 @@ app.get("/", (c) =>
   })
 );
 
+app.route("/", authRoutes);
 app.route("/", healthRoutes);
 app.route("/", projectRoutes);
 app.route("/", providerRoutes);

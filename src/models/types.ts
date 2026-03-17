@@ -264,3 +264,14 @@ export interface WindowSummary {
   metrics: WindowSummaryMetric[];
 }
 
+// Auth
+
+export interface User {
+  id: string;
+  googleId: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+  createdAt: string;
+}
