@@ -17,6 +17,13 @@ binding = "KV"
 id = "bae737e6b52a4b22aeda239462033d1c"
 preview_id = "6ac6516a2da6479f9f21958a9ad25f82"
 
+# Local dev placeholders — set production values via: wrangler secret put <KEY> 
+# return GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to blank string after testing
+[vars]
+GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_SECRET = ""
+JWT_SECRET = "dev-jwt-secret-min-32-chars-change-this-in-prod"
+
 [triggers]
 crons = ["0 * * * *"]
 

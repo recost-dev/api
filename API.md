@@ -6,13 +6,39 @@ Base URL: `https://api.ecoapi.dev`
 
 ## Authentication
 
-Some routes require an admin API key. Pass it as a Bearer token:
+**Admin key** — pass as a Bearer token. Routes marked 🔒 require this.
 
 ```
 Authorization: Bearer <admin-key>
 ```
 
-Routes marked 🔒 require this header. Routes marked 🌐 are public.
+**User JWT** — obtained via Google OAuth (`GET /auth/google`), pass as a Bearer token. Routes marked 🔑 require this.
+
+```
+Authorization: Bearer <JWT>
+```
+
+Routes marked 🌐 are public.
+
+---
+
+## Auth
+
+### 🌐 `GET /auth/google`
+Redirects to Google's OAuth consent screen. Rate limited to 20 requests/IP/hour.
+
+### 🌐 `GET /auth/google/callback`
+OAuth callback — handled automatically by Google's redirect. On success, redirects to `https://ecoapi.dev/dashboard?token=<JWT>`. On failure (user denied access), redirects to `https://ecoapi.dev/auth/error?reason=denied` — the frontend must handle this route.
+
+### 🔑 `GET /auth/me`
+Returns the authenticated user's profile.
+
+```json
+{ "data": { "id": "...", "email": "...", "name": "...", "avatarUrl": "...", "isAdmin": false, "createdAt": "..." } }
+```
+
+### 🔑 `POST /auth/refresh`
+Issues a fresh 7-day JWT. Send `Content-Type: application/json` with `{}` body. Returns `{ "data": { "token": "<new-JWT>" } }`.
 
 ---
 
