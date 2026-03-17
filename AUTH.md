@@ -44,12 +44,52 @@ Auth migrations start at **0005**. Next available: **0007**.
 
 ---
 
-## Completed
+## Built (Issue 2)
 
-- Google OAuth flow (callback, session/JWT issuance) — Issue 2
-- API key generation/list/revoke endpoints (`POST/GET/DELETE /auth/keys`) — Issue 3
+**Google OAuth + JWT session** — `src/routes/auth.ts`
+
+| Route | Description |
+|---|---|
+| `GET /auth/google` | Builds Google OAuth URL, stores CSRF state in KV (`oauth:state:<uuid>`, TTL 300s), redirects. Rate limited 20/IP/hour via `rl:auth:ip:<ip>` KV key. |
+| `GET /auth/google/callback` | Validates state (single-use, deleted after check), exchanges code, upserts user, issues JWT, redirects to `https://ecoapi.dev/dashboard?token=<JWT>`. Error → `https://ecoapi.dev/auth/error?reason=denied`. |
+| `GET /auth/me` | Returns `{ data: User }` — requires JWT. |
+| `POST /auth/refresh` | Returns fresh JWT — requires JWT + `Content-Type: application/json`. |
+
+**JWT** (`src/services/auth-service.ts`, `jose` library):
+- Algorithm: HS256, signed with `JWT_SECRET` env var
+- Expiry: 7 days
+- Payload: `{ sub: userId, email }`
+- `verifyJwt` throws `AppError("UNAUTHORIZED", 401)` on any failure
+
+**Middleware** `src/middleware/jwt-auth.ts`:
+- Reads `Authorization: Bearer <token>`, calls `verifyJwt`, sets `c.set("userId", payload.sub)`
+- Apply per-route: `route.get("/path", requireJwt, handler)`
+
+**Google token exchange**: standard `fetch` POST to `https://oauth2.googleapis.com/token`, decodes `id_token` payload via base64 (no separate userinfo call, no signature verify needed since token received directly from Google).
+
+**User upsert**: `INSERT ... ON CONFLICT(google_id) DO UPDATE SET email, name, avatar_url` — never duplicate rows.
+
+**New env vars** (add to `wrangler.toml [vars]` for dev, `wrangler secret put` for prod):
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET`
+
+---
+
+## Built (Issue 3)
+
+**API key generation, listing, revocation** — `src/routes/auth.ts`, `src/services/auth-service.ts`
+
+| Route | Description |
+|---|---|
+| `POST /auth/keys` | Generates `eco_live_<64 hex>` key via `crypto.getRandomValues`, SHA-256 hashes it (stores hash only), returns plaintext key once. Max 10 keys/user (409 if exceeded). Body: `{ name }`. |
+| `GET /auth/keys` | Returns `[{ id, key_prefix, name, last_used_at, created_at }]` — never returns hash or plaintext. |
+| `DELETE /auth/keys/:id` | Deletes row with `WHERE id = ? AND user_id = ?` ownership check. 404 if not found. 204 on success. |
+
+Key format: `eco_live_` + 64 lowercase hex chars (32 random bytes). `key_prefix` = first 8 hex chars of the random part, stored at insert time.
+
+---
 
 ## Pending / Not Yet Built
 
 - Auth middleware (validate Bearer token or API key on incoming requests)
-- Enforce `projects.user_id NOT NULL` (future migration after backfill)
+- Enforce `projects.user_id NOT NULL` (future migration after data backfill)
+- Scope project access by `user_id` (currently projects are unscoped after auth)

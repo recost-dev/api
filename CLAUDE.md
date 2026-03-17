@@ -8,6 +8,7 @@ REST API for analyzing codebase API call patterns, estimating costs, and generat
 - **Hono** — web framework (Workers-compatible, Express-like)
 - **Cloudflare D1** — SQLite database (persistent)
 - **TypeScript** — strict mode
+- **jose** — JWT sign/verify (Web Crypto API, Workers-compatible)
 
 ## Setup
 
@@ -16,8 +17,9 @@ REST API for analyzing codebase API call patterns, estimating costs, and generat
 3. Paste the returned `database_id` into `wrangler.toml`
 4. Create KV namespace: `npx wrangler kv namespace create rate-limit`
 5. Paste the returned `id` and `preview_id` into `wrangler.toml` under `[[kv_namespaces]]`
-6. Apply migrations: `npm run db:migrate:local`
-7. Start dev server: `npm run dev`
+6. Fill in `wrangler.toml [vars]`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET`
+7. Apply migrations: `npm run db:migrate:local`
+8. Start dev server: `npm run dev`
 
 ## Commands
 
@@ -37,19 +39,28 @@ src/
   env.ts              # Shared Env/Variables/AppContext types
   config/
     pricing.ts        # Provider pricing & keyword detection
-  middleware/         # Hono middleware (cors, logging, content-type, error handler)
+  middleware/
+    auth.ts           # requireAdminKey (admin API key)
+    jwt-auth.ts       # requireJwt (user JWT Bearer token)
+    cors.ts / rate-limit.ts / logging.ts / content-type.ts / error-handler.ts
   models/
-    types.ts          # TypeScript domain types
-  routes/             # Route handlers (health, projects, providers)
+    types.ts          # TypeScript domain types (includes User)
+  routes/
+    auth.ts           # /auth/* — Google OAuth + JWT session
+    health.ts / projects.ts / providers.ts / chat.ts / telemetry.ts
   services/
+    auth-service.ts        # signJwt, verifyJwt, exchangeGoogleCode, upsertUser, getUserById
     analysis-service.ts    # Core analysis engine (pure, sync)
     project-service.ts     # All CRUD via D1 (async)
-    provider-service.ts    # Provider config lookups
-    validation-service.ts  # Input validation
+    provider-service.ts / validation-service.ts / telemetry-service.ts / rollup-service.ts
   utils/              # AppError, pagination, sort helpers
 migrations/
-  0001_schema.sql     # D1 table definitions
+  0001_schema.sql     # projects, scans, endpoints, suggestions
   0002_seed.sql       # Demo project seed data
+  0003_telemetry.sql  # telemetry_windows, telemetry_metrics
+  0004_*              # telemetry indexes
+  0005_users_and_keys.sql  # users, api_keys, projects.user_id FK
+  0006_seed_admin.sql      # Local dev admin user
 wrangler.toml
 package.json
 tsconfig.json
@@ -66,12 +77,15 @@ tsconfig.json
 
 ## Rate Limiting & Payload Limits
 
-- **Payload cap**: `apiCalls` arrays are capped at 2000 items — enforced in `validation-service.ts` for both `POST /projects` and `POST /projects/:id/scans`. Returns 422 if exceeded.
-- **Scan rate limit**: `POST /projects/:id/scans` is limited to **10 scans per 60 seconds per project**, enforced via a Cloudflare KV counter in `middleware/rate-limit.ts`. Returns 429 if exceeded.
+- **Payload cap**: `apiCalls` arrays are capped at 2000 items — enforced in `validation-service.ts`. Returns 422 if exceeded.
+- **Scan rate limit**: `POST /projects/:id/scans` — 10/60s per project. KV key: `rl:scan:<projectId>`.
+- **Auth rate limit**: `GET /auth/google` — 20/hour per IP. KV key: `rl:auth:ip:<ip>`.
 - KV binding name: `KV` (configured in `wrangler.toml` under `[[kv_namespaces]]`)
 
 ## D1 Schema
 
-Tables: `projects`, `scans`, `endpoints`, `suggestions`
-- See [migrations/0001_schema.sql](migrations/0001_schema.sql) for full schema
+Tables: `projects`, `scans`, `endpoints`, `suggestions`, `telemetry_windows`, `telemetry_metrics`, `telemetry_daily`, `users`, `api_keys`
+- See `migrations/` for full schema (0001–0006)
 - Numeric costs stored as `REAL`; arrays/objects stored as JSON `TEXT`
+- `users`: `id`, `google_id` (unique), `email` (unique), `name`, `avatar_url`, `is_admin` (0/1), `created_at`
+- `projects.user_id` FK → `users` (nullable; NOT NULL enforcement is a future migration)
