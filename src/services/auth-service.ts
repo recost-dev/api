@@ -156,7 +156,7 @@ function generateApiKey(): { key: string; keyPrefix: string } {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
-  return { key: `eco_live_${hex}`, keyPrefix: hex.slice(0, 8) };
+  return { key: `eco-${hex}`, keyPrefix: hex.slice(0, 8) };
 }
 
 export async function hashApiKey(key: string): Promise<string> {

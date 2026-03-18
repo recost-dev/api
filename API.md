@@ -41,7 +41,7 @@ Returns the authenticated user's profile.
 Issues a fresh 7-day JWT. Send `Content-Type: application/json` with `{}` body. Returns `{ "data": { "token": "<new-JWT>" } }`.
 
 ### 🔑 `POST /auth/keys`
-Create a new API key. Body: `{ "name": "my-key" }` (string, max 64 chars). Returns `201` with `{ "data": { "id", "key_prefix", "name", "created_at", "key" } }`. The plaintext `key` (format: `eco_live_<64 hex chars>`) is shown **exactly once** — store it immediately. Max 10 keys per user; returns `409` if exceeded.
+Create a new API key. Body: `{ "name": "my-key" }` (string, max 64 chars). Returns `201` with `{ "data": { "id", "key_prefix", "name", "created_at", "key" } }`. The plaintext `key` (format: `eco-<64 hex chars>`) is shown **exactly once** — store it immediately. Max 10 keys per user; returns `409` if exceeded.
 
 ### 🔑 `GET /auth/keys`
 List all API keys for the authenticated user. Returns `{ "data": [{ "id", "key_prefix", "name", "last_used_at", "created_at" }] }`. The hash and plaintext key are never returned.
