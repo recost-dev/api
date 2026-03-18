@@ -8,6 +8,9 @@ import {
   exchangeGoogleCode,
   upsertUser,
   getUserById,
+  createApiKey,
+  listApiKeys,
+  deleteApiKey,
 } from "../services/auth-service";
 
 const AUTH_LIMIT = 20;
@@ -99,6 +102,32 @@ auth.post("/auth/refresh", requireJwt, async (c) => {
   const user = await getUserById(c.env.DB, userId);
   const token = await signJwt(user.id, user.email, c.env.JWT_SECRET);
   return c.json({ data: { token } });
+});
+
+// POST /auth/keys — create a new API key for the authenticated user
+auth.post("/auth/keys", requireJwt, async (c) => {
+  const userId = c.get("userId")!;
+  const body = await c.req.json<{ name?: unknown }>();
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!name || name.length > 64) {
+    throw new AppError("VALIDATION_ERROR", "name must be a non-empty string (max 64 chars)", 422);
+  }
+  const apiKey = await createApiKey(c.env.DB, userId, name);
+  return c.json({ data: apiKey }, 201);
+});
+
+// GET /auth/keys — list all API keys for the authenticated user
+auth.get("/auth/keys", requireJwt, async (c) => {
+  const userId = c.get("userId")!;
+  const keys = await listApiKeys(c.env.DB, userId);
+  return c.json({ data: keys });
+});
+
+// DELETE /auth/keys/:id — revoke an API key
+auth.delete("/auth/keys/:id", requireJwt, async (c) => {
+  const userId = c.get("userId")!;
+  await deleteApiKey(c.env.DB, userId, c.req.param("id"));
+  return new Response(null, { status: 204 });
 });
 
 export default auth;

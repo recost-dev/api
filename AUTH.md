@@ -27,6 +27,7 @@ Key decisions:
 - `projects.user_id` is **nullable** — existing seed data has no owner; a future migration will enforce NOT NULL
 - `key_hash` is stored (not the raw key); `key_prefix` is for display (e.g. `eco_abc123...`)
 - Index on `api_keys(key_hash)` for fast lookup during request auth
+- `api_keys.user_id` FK is `ON DELETE CASCADE` from `users` only — deleting an api_keys row does **not** cascade to projects or telemetry
 
 ---
 
@@ -73,8 +74,22 @@ Auth migrations start at **0005**. Next available: **0007**.
 
 ---
 
+## Built (Issue 3)
+
+**API key generation, listing, revocation** — `src/routes/auth.ts`, `src/services/auth-service.ts`
+
+| Route | Description |
+|---|---|
+| `POST /auth/keys` | Generates `eco-<64 hex>` key via `crypto.getRandomValues`, SHA-256 hashes it (stores hash only), returns plaintext key once. Max 10 keys/user (409 if exceeded). Body: `{ name }`. |
+| `GET /auth/keys` | Returns `[{ id, key_prefix, name, last_used_at, created_at }]` — never returns hash or plaintext. |
+| `DELETE /auth/keys/:id` | Deletes row with `WHERE id = ? AND user_id = ?` ownership check. 404 if not found. 204 on success. |
+
+Key format: `eco-` + 64 lowercase hex chars (32 random bytes). `key_prefix` = first 8 hex chars of the random part, stored at insert time.
+
+---
+
 ## Pending / Not Yet Built
 
-- API key generation endpoint (create/list/revoke)
+- Auth middleware (validate Bearer token or API key on incoming requests)
 - Enforce `projects.user_id NOT NULL` (future migration after data backfill)
 - Scope project access by `user_id` (currently projects are unscoped after auth)
