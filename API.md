@@ -6,17 +6,15 @@ Base URL: `https://api.ecoapi.dev`
 
 ## Authentication
 
-**Admin key** — pass as a Bearer token. Routes marked 🔒 require this.
+**User auth** — pass as a Bearer token. Routes marked 🔑 require this. Accepts either:
+- A **JWT** obtained via Google OAuth (`GET /auth/google`)
+- An **API key** (`eco-<64 hex chars>`) created via `POST /auth/keys`
 
 ```
-Authorization: Bearer <admin-key>
+Authorization: Bearer <JWT-or-api-key>
 ```
 
-**User JWT** — obtained via Google OAuth (`GET /auth/google`), pass as a Bearer token. Routes marked 🔑 require this.
-
-```
-Authorization: Bearer <JWT>
-```
+The server detects the token type by prefix (`eco-` = API key, anything else = JWT).
 
 Routes marked 🌐 are public.
 
@@ -64,12 +62,14 @@ curl https://api.ecoapi.dev/health
 
 ## Projects
 
-### 🔒 `POST /projects`
-Create a new project.
+All `/projects/*` routes require user auth (JWT or API key). Projects are scoped to the authenticated user — you can only see and modify your own projects. Admins can see all projects.
+
+### 🔑 `POST /projects`
+Create a new project. Auto-assigns to authenticated user. Limits: 20 projects total, 5 creations/hour.
 
 ```bash
 curl -X POST https://api.ecoapi.dev/projects \
-  -H "Authorization: Bearer <admin-key>" \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-app", "description": "optional"}'
 ```
@@ -78,57 +78,53 @@ Response: `201` with the created project including its `id`.
 
 ---
 
-### 🔒 `GET /projects`
-List all projects.
+### 🔑 `GET /projects`
+List projects owned by the authenticated user (admins see all).
 
 ```bash
 curl https://api.ecoapi.dev/projects \
-  -H "Authorization: Bearer <admin-key>"
+  -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-### 🌐 `GET /projects/:id`
-Get a single project.
-
-```bash
-curl https://api.ecoapi.dev/projects/<id>
-```
+### 🔑 `GET /projects/:id`
+Get a single project. Returns 404 if not owned by the authenticated user.
 
 ---
 
-### 🔒 `PATCH /projects/:id`
+### 🔑 `PATCH /projects/:id`
 Update a project's name or description.
 
 ```bash
 curl -X PATCH https://api.ecoapi.dev/projects/<id> \
-  -H "Authorization: Bearer <admin-key>" \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "new-name"}'
 ```
 
 ---
 
-### 🔒 `DELETE /projects/:id`
+### 🔑 `DELETE /projects/:id`
 Delete a project and all its data.
 
 ```bash
 curl -X DELETE https://api.ecoapi.dev/projects/<id> \
-  -H "Authorization: Bearer <admin-key>"
+  -H "Authorization: Bearer <token>"
 ```
 
 ---
 
 ## Telemetry (SDK → API)
 
-### 🌐 `POST /projects/:id/telemetry`
-Ingest a WindowSummary payload from the SDK. Called automatically by `@ecoapi/node` and `ecoapi` (Python) — you don't call this manually.
+### 🔑 `POST /projects/:id/telemetry`
+Ingest a WindowSummary payload from the SDK. Called automatically by `@ecoapi/node` and `ecoapi` (Python). Pass your API key as the Bearer token. Rate limited to 1000 ingests/hour per project.
 
 Returns `202 { "status": "accepted", "windowId": "..." }`.
 
 ---
 
-### 🌐 `GET /projects/:id/analytics`
+### 🔑 `GET /projects/:id/analytics`
 Aggregated usage data for dashboards. Grouped by day by default.
 
 **Query params:**
@@ -146,7 +142,7 @@ curl "https://api.ecoapi.dev/projects/<id>/analytics?from=2026-03-01T00:00:00Z&t
 
 ---
 
-### 🌐 `GET /projects/:id/telemetry/recent`
+### 🔑 `GET /projects/:id/telemetry/recent`
 Raw recent flush windows. Useful for debugging or live feeds.
 
 **Query params:**
@@ -181,7 +177,7 @@ Get a specific scan by ID.
 
 ## Analysis Results
 
-All read-only and public — requires a valid project ID (UUID).
+All require user auth (🔑). Returns 404 if project not owned by authenticated user.
 
 | Endpoint | Description |
 |---|---|

@@ -40,8 +40,10 @@ src/
   config/
     pricing.ts        # Provider pricing & keyword detection
   middleware/
-    auth.ts           # requireAdminKey (admin API key)
+    auth.ts           # requireAdminKey (admin API key — internal use)
     jwt-auth.ts       # requireJwt (user JWT Bearer token)
+    api-key-auth.ts   # apiKeyAuth (eco- prefixed API keys; updates last_used_at via waitUntil)
+    require-auth.ts   # requireAuth — combined: eco- prefix → apiKeyAuth, else → requireJwt
     cors.ts / rate-limit.ts / logging.ts / content-type.ts / error-handler.ts
   models/
     types.ts          # TypeScript domain types (includes User)
@@ -53,7 +55,7 @@ src/
     analysis-service.ts    # Core analysis engine (pure, sync)
     project-service.ts     # All CRUD via D1 (async)
     provider-service.ts / validation-service.ts / telemetry-service.ts / rollup-service.ts
-  utils/              # AppError, pagination, sort helpers
+  utils/              # AppError, pagination, sort helpers, project-ownership.ts
 migrations/
   0001_schema.sql     # projects, scans, endpoints, suggestions
   0002_seed.sql       # Demo project seed data
@@ -61,6 +63,7 @@ migrations/
   0004_*              # telemetry indexes
   0005_users_and_keys.sql  # users, api_keys, projects.user_id FK
   0006_seed_admin.sql      # Local dev admin user
+  0007_seed_projects_admin.sql  # Assigns user_id=NULL seed projects to admin
 wrangler.toml
 package.json
 tsconfig.json
@@ -74,18 +77,22 @@ tsconfig.json
 - `deleteProject` manually cascades: deletes suggestions → endpoints → scans → project in a `db.batch()`
 - `analyzeApiCalls` in `analysis-service.ts` is pure synchronous logic — no DB access
 - `crypto.randomUUID()` is used as a global (no import needed in Workers runtime)
+- All `/projects/*` routes are protected by `requireAuth` (applied in `index.ts`). Every `/:id/*` handler calls `assertProjectOwnership(db, projectId, userId)` from `utils/project-ownership.ts` — throws 404 (not 403) if the user doesn't own the project. Admins (`is_admin = 1`) bypass ownership checks.
+- `listProjects` always scopes by `userId`. Admins use `listAllProjects` (called in the route handler after checking `user.isAdmin`).
 
 ## Rate Limiting & Payload Limits
 
 - **Payload cap**: `apiCalls` arrays are capped at 2000 items — enforced in `validation-service.ts`. Returns 422 if exceeded.
 - **Scan rate limit**: `POST /projects/:id/scans` — 10/60s per project. KV key: `rl:scan:<projectId>`.
 - **Auth rate limit**: `GET /auth/google` — 20/hour per IP. KV key: `rl:auth:ip:<ip>`.
+- **Project creation**: hard cap 20/user (D1 count); 5/hour per user. KV key: `rl:projects:create:<userId>`.
+- **Telemetry ingest**: 1000/hour per project. KV key: `rl:telemetry:<projectId>`.
 - KV binding name: `KV` (configured in `wrangler.toml` under `[[kv_namespaces]]`)
 
 ## D1 Schema
 
 Tables: `projects`, `scans`, `endpoints`, `suggestions`, `telemetry_windows`, `telemetry_metrics`, `telemetry_daily`, `users`, `api_keys`
-- See `migrations/` for full schema (0001–0006)
+- See `migrations/` for full schema (0001–0007)
 - Numeric costs stored as `REAL`; arrays/objects stored as JSON `TEXT`
 - `users`: `id`, `google_id` (unique), `email` (unique), `name`, `avatar_url`, `is_admin` (0/1), `created_at`
 - `projects.user_id` FK → `users` (nullable; NOT NULL enforcement is a future migration)

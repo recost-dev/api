@@ -40,7 +40,7 @@ Local-dev admin: `id = 00000000-0000-0000-0000-000000000100`, `email = admin@loc
 ## Migration Numbering
 
 Existing migrations occupy 0001–0004 (0001 schema, 0002 seed, 0003 telemetry, 0004 telemetry indexes).
-Auth migrations start at **0005**. Next available: **0007**.
+Auth migrations start at **0005**. Next available: **0008**.
 
 ---
 
@@ -88,8 +88,17 @@ Key format: `eco-` + 64 lowercase hex chars (32 random bytes). `key_prefix` = fi
 
 ---
 
+## Built (Issue 4)
+
+**API key auth middleware + project scoping** — `src/middleware/api-key-auth.ts`, `src/middleware/require-auth.ts`, `src/utils/project-ownership.ts`
+
+- `requireAuth` middleware (applied to all `/projects/*` in `index.ts`): branches on Bearer token prefix — `eco-` → API key auth, anything else → JWT auth. No sequential fallback.
+- `apiKeyAuth`: SHA-256 hashes the token, looks up `api_keys` by `key_hash`, sets `userId` in context. Updates `last_used_at` fire-and-forget via `c.executionCtx.waitUntil()`.
+- `assertProjectOwnership(db, projectId, userId)`: checks `users.is_admin = 1` first (admin bypass), then `SELECT id FROM projects WHERE id = ? AND user_id = ?`. Throws 404 (not 403) to avoid leaking project existence. Called at the top of every `/projects/:id/*` handler.
+- `listProjects` now requires `userId` (always scopes to owner). Admins bypass in the route handler via `listAllProjects`.
+- Rate limits: 20 projects hard cap (D1 count), 5 project creations/hour per user (`rl:projects:create:{userId}` KV), 1000 telemetry ingests/hour per project (`rl:telemetry:{projectId}` KV).
+- Migration `0007_seed_projects_admin.sql`: assigns seed projects with `user_id = NULL` to the admin user.
+
 ## Pending / Not Yet Built
 
-- Auth middleware (validate Bearer token or API key on incoming requests)
-- Enforce `projects.user_id NOT NULL` (future migration after data backfill)
-- Scope project access by `user_id` (currently projects are unscoped after auth)
+- Enforce `projects.user_id NOT NULL` (future migration after data backfill is confirmed clean)
