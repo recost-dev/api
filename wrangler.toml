@@ -19,6 +19,9 @@ preview_id = "6ac6516a2da6479f9f21958a9ad25f82"
 
 # Local dev vars — set via .dev.vars (not committed), production secrets via: wrangler secret put <KEY>
 
+[vars]
+FRONTEND_URL = "https://ecoapi.dev"
+
 [triggers]
 crons = ["0 * * * *"]
 
