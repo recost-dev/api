@@ -85,7 +85,8 @@ auth.get("/auth/google/callback", async (c) => {
 
   const token = await signJwt(user.id, user.email, c.env.JWT_SECRET);
 
-  return c.redirect(`https://ecoapi.dev/dashboard?token=${token}`, 302);
+  const frontendUrl = c.env.FRONTEND_URL ?? 'https://ecoapi.dev';
+  return c.redirect(`${frontendUrl}/dashboard?token=${token}`, 302);
 });
 
 // GET /auth/me — return authenticated user's profile
