@@ -14,12 +14,14 @@ import {
   getScan,
   getSuggestion,
   getSustainabilityStats,
+  listAllProjects,
   listLatestEndpoints,
   listLatestSuggestions,
   listProjects,
   listScans,
   patchProject
 } from "../services/project-service";
+import { getUserById } from "../services/auth-service";
 import {
   validateCreateProjectInput,
   validatePatchProjectInput,
@@ -28,27 +30,57 @@ import {
 import { buildPaginationMeta, paginate, parsePagination } from "../utils/pagination";
 import { AppError } from "../utils/app-error";
 import { parseOrder } from "../utils/sort";
+import { assertProjectOwnership } from "../utils/project-ownership";
+
+const PROJECT_HARD_CAP = 20;
+const PROJECT_HOURLY_CAP = 5;
 
 const app = new Hono<AppContext>();
 
 app.post("/projects", async (c) => {
+  const userId = c.get("userId")!;
+
+  // Hard cap: 20 projects per user
+  const countRow = await c.env.DB
+    .prepare("SELECT COUNT(*) as count FROM projects WHERE user_id = ?")
+    .bind(userId)
+    .first<{ count: number }>();
+  if ((countRow?.count ?? 0) >= PROJECT_HARD_CAP) {
+    throw new AppError("PROJECT_LIMIT_EXCEEDED", `Maximum of ${PROJECT_HARD_CAP} projects per user`, 429);
+  }
+
+  // Time-windowed cap: 5 project creations per hour
+  const rlKey = `rl:projects:create:${userId}`;
+  const rlRaw = await c.env.KV.get(rlKey);
+  const rlCount = rlRaw ? parseInt(rlRaw, 10) : 0;
+  if (rlCount >= PROJECT_HOURLY_CAP) {
+    throw new AppError("RATE_LIMITED", `Project creation limited to ${PROJECT_HOURLY_CAP} per hour`, 429);
+  }
+  await c.env.KV.put(rlKey, String(rlCount + 1), rlRaw ? undefined : { expirationTtl: 3600 });
+
   const body = await c.req.json().catch(() => {
     throw new AppError("MALFORMED_JSON", "Malformed JSON request body", 400);
   });
   const input = validateCreateProjectInput(body);
-  const project = await createProject(c.env.DB, input);
+  const project = await createProject(c.env.DB, input, userId);
   return c.json({ data: project }, 201);
 });
 
 app.get("/projects", async (c) => {
+  const userId = c.get("userId")!;
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const order = parseOrder(query.order);
-  const data = await listProjects(c.env.DB, {
-    name: query.name,
-    sort: query.sort,
-    order
-  });
+
+  const user = await getUserById(c.env.DB, userId);
+
+  let data;
+  if (user.isAdmin) {
+    data = await listAllProjects(c.env.DB, { name: query.name, sort: query.sort, order });
+  } else {
+    data = await listProjects(c.env.DB, { name: query.name, sort: query.sort, order, userId });
+  }
+
   return c.json({
     data: paginate(data, page, limit),
     pagination: buildPaginationMeta(page, limit, data.length)
@@ -56,11 +88,15 @@ app.get("/projects", async (c) => {
 });
 
 app.get("/projects/:id", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const project = await getProjectWithSummary(c.env.DB, c.req.param("id"));
   return c.json({ data: project });
 });
 
 app.patch("/projects/:id", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const body = await c.req.json().catch(() => {
     throw new AppError("MALFORMED_JSON", "Malformed JSON request body", 400);
   });
@@ -70,11 +106,15 @@ app.patch("/projects/:id", async (c) => {
 });
 
 app.delete("/projects/:id", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   await deleteProject(c.env.DB, c.req.param("id"));
   return c.body(null, 204);
 });
 
 app.post("/projects/:id/scans", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const body = await c.req.json().catch(() => {
     throw new AppError("MALFORMED_JSON", "Malformed JSON request body", 400);
   });
@@ -84,6 +124,8 @@ app.post("/projects/:id/scans", async (c) => {
 });
 
 app.get("/projects/:id/scans", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const order = parseOrder(query.order ?? "desc");
@@ -101,16 +143,22 @@ app.get("/projects/:id/scans", async (c) => {
 });
 
 app.get("/projects/:id/scans/latest", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const scan = await getLatestScan(c.env.DB, c.req.param("id"));
   return c.json({ data: scan });
 });
 
 app.get("/projects/:id/scans/:scanId", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const scan = await getScan(c.env.DB, c.req.param("id"), c.req.param("scanId"));
   return c.json({ data: scan });
 });
 
 app.get("/projects/:id/endpoints", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const order = parseOrder(query.order ?? "desc");
@@ -143,11 +191,15 @@ app.get("/projects/:id/endpoints", async (c) => {
 });
 
 app.get("/projects/:id/endpoints/:endpointId", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const endpoint = await getEndpoint(c.env.DB, c.req.param("id"), c.req.param("endpointId"));
   return c.json({ data: endpoint });
 });
 
 app.get("/projects/:id/suggestions", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const order = parseOrder(query.order ?? "desc");
@@ -186,26 +238,36 @@ app.get("/projects/:id/suggestions", async (c) => {
 });
 
 app.get("/projects/:id/suggestions/:suggestionId", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const suggestion = await getSuggestion(c.env.DB, c.req.param("id"), c.req.param("suggestionId"));
   return c.json({ data: suggestion });
 });
 
 app.get("/projects/:id/graph", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const graph = await getGraph(c.env.DB, c.req.param("id"), c.req.query("cluster_by"));
   return c.json({ data: graph });
 });
 
 app.get("/projects/:id/sustainability", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const stats = await getSustainabilityStats(c.env.DB, c.req.param("id"));
   return c.json({ data: stats });
 });
 
 app.get("/projects/:id/cost", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const summary = await getCostSummary(c.env.DB, c.req.param("id"));
   return c.json({ data: summary });
 });
 
 app.get("/projects/:id/cost/by-provider", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const data = await getCostBreakdownByProvider(c.env.DB, c.req.param("id"));
@@ -216,6 +278,8 @@ app.get("/projects/:id/cost/by-provider", async (c) => {
 });
 
 app.get("/projects/:id/cost/by-file", async (c) => {
+  const userId = c.get("userId")!;
+  await assertProjectOwnership(c.env.DB, c.req.param("id"), userId);
   const query = c.req.query();
   const { page, limit } = parsePagination(query);
   const data = await getCostBreakdownByFile(c.env.DB, c.req.param("id"));

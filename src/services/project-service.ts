@@ -128,13 +128,13 @@ const toSuggestion = (row: RawSuggestion): Suggestion => ({
 // Projects
 // ---------------------------------------------------------------------------
 
-export const createProject = async (db: D1Database, input: ProjectInput): Promise<Project> => {
+export const createProject = async (db: D1Database, input: ProjectInput, userId: string): Promise<Project> => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   await db
-    .prepare("INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(id, input.name, input.description ?? null, now, now)
+    .prepare("INSERT INTO projects (id, name, description, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(id, input.name, input.description ?? null, userId, now, now)
     .run();
 
   if (input.apiCalls && input.apiCalls.length > 0) {
@@ -149,6 +149,45 @@ export const createProject = async (db: D1Database, input: ProjectInput): Promis
 };
 
 export const listProjects = async (
+  db: D1Database,
+  { name, sort, order, userId }: { name?: string; sort?: string; order: "asc" | "desc"; userId: string }
+): Promise<Project[]> => {
+  const validSortFields: Record<string, string> = {
+    created_at: "created_at",
+    updated_at: "updated_at",
+    name: "name"
+  };
+  const sortField = sort ?? "created_at";
+  if (!validSortFields[sortField]) {
+    throw new AppError(
+      "INVALID_SORT_FIELD",
+      "Query param 'sort' must be one of: created_at, updated_at, name",
+      422
+    );
+  }
+
+  const col = validSortFields[sortField];
+  const dir = order === "asc" ? "ASC" : "DESC";
+
+  let rows: RawProject[];
+  if (name) {
+    const result = await db
+      .prepare(`SELECT * FROM projects WHERE user_id = ? AND name LIKE ? ORDER BY ${col} ${dir}`)
+      .bind(userId, `%${name}%`)
+      .all<RawProject>();
+    rows = result.results ?? [];
+  } else {
+    const result = await db
+      .prepare(`SELECT * FROM projects WHERE user_id = ? ORDER BY ${col} ${dir}`)
+      .bind(userId)
+      .all<RawProject>();
+    rows = result.results ?? [];
+  }
+
+  return rows.map(toProject);
+};
+
+export const listAllProjects = async (
   db: D1Database,
   { name, sort, order }: { name?: string; sort?: string; order: "asc" | "desc" }
 ): Promise<Project[]> => {
