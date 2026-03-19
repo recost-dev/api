@@ -23,7 +23,7 @@
   "license": "AGPL-3.0-only",
   "dependencies": {
     "hono": "^4.6.0",
-    "jose": "^6.2.1"
+    "jose": "^6.2.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
