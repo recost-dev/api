@@ -1,4 +1,4 @@
-# EcoAPI
+# ReCost API
 
 REST API for analyzing codebase API usage, estimating cost, detecting inefficiencies, and generating optimization suggestions.
 
@@ -9,7 +9,7 @@ Developers often ship API-heavy features without visibility into:
 - Redundant or cacheable request patterns
 - Rate-limit and N+1 hotspots
 
-EcoAPI turns parsed API call data into actionable diagnostics:
+ReCost API turns parsed API call data into actionable diagnostics:
 - Cost analytics
 - Endpoint-level risk/status
 - Optimization suggestions with estimated savings
@@ -26,7 +26,7 @@ EcoAPI turns parsed API call data into actionable diagnostics:
 ## Setup
 
 1. `npm install`
-2. Create D1 database: `npx wrangler d1 create eco-db`
+2. Create D1 database: `npx wrangler d1 create recost-db`
 3. Paste the returned `database_id` into `wrangler.toml`
 4. Create KV namespace: `npx wrangler kv namespace create rate-limit`
 5. Paste the returned `id` and `preview_id` into `wrangler.toml` under `[[kv_namespaces]]`
@@ -85,9 +85,9 @@ tsconfig.json
 
 ## API
 
-The API is live at **https://api.ecoapi.dev** — no setup required.
+The API is live at **https://api.recost.dev** — no setup required.
 
-Full API documentation is available at **https://ecoapi.dev**.
+Full API documentation is available at **https://recost.dev**.
 
 ---
 

@@ -1,4 +1,4 @@
-# ECO - API Usage Analyzer
+# ReCost - API Usage Analyzer
 
 REST API for analyzing codebase API call patterns, estimating costs, and generating optimization suggestions.
 
@@ -13,7 +13,7 @@ REST API for analyzing codebase API call patterns, estimating costs, and generat
 ## Setup
 
 1. `npm install`
-2. Create D1 database: `npx wrangler d1 create eco-db`
+2. Create D1 database: `npx wrangler d1 create recost-db`
 3. Paste the returned `database_id` into `wrangler.toml`
 4. Create KV namespace: `npx wrangler kv namespace create rate-limit`
 5. Paste the returned `id` and `preview_id` into `wrangler.toml` under `[[kv_namespaces]]`
@@ -39,19 +39,19 @@ src/
   env.ts              # Shared Env/Variables/AppContext types
   config/
     pricing.ts        # Provider pricing & keyword detection
+    sustainability.ts # Energy/water/CO2 constants per provider
   middleware/
-    auth.ts           # requireAdminKey (admin API key — internal use)
     jwt-auth.ts       # requireJwt (user JWT Bearer token)
     api-key-auth.ts   # apiKeyAuth (eco- prefixed API keys; updates last_used_at via waitUntil)
     require-auth.ts   # requireAuth — combined: eco- prefix → apiKeyAuth, else → requireJwt
-    cors.ts / rate-limit.ts / logging.ts / content-type.ts / error-handler.ts
+    cors.ts / rate-limit.ts / logging.ts / content-type.ts / error-handler.ts / request-id.ts
   models/
     types.ts          # TypeScript domain types (includes User)
   routes/
-    auth.ts           # /auth/* — Google OAuth + JWT session
+    auth.ts           # /auth/* — Google OAuth + JWT session + API key CRUD
     health.ts / projects.ts / providers.ts / chat.ts / telemetry.ts
   services/
-    auth-service.ts        # signJwt, verifyJwt, exchangeGoogleCode, upsertUser, getUserById
+    auth-service.ts        # signJwt, verifyJwt, exchangeGoogleCode, upsertUser, getUserById, createApiKey, listApiKeys, deleteApiKey
     analysis-service.ts    # Core analysis engine (pure, sync)
     project-service.ts     # All CRUD via D1 (async)
     provider-service.ts / validation-service.ts / telemetry-service.ts / rollup-service.ts
@@ -79,6 +79,7 @@ tsconfig.json
 - `crypto.randomUUID()` is used as a global (no import needed in Workers runtime)
 - All `/projects/*` routes are protected by `requireAuth` (applied in `index.ts`). Every `/:id/*` handler calls `assertProjectOwnership(db, projectId, userId)` from `utils/project-ownership.ts` — throws 404 (not 403) if the user doesn't own the project. Admins (`is_admin = 1`) bypass ownership checks.
 - `listProjects` always scopes by `userId`. Admins use `listAllProjects` (called in the route handler after checking `user.isAdmin`).
+- Hourly cron trigger (`0 * * * *`) calls `runRollup` via a `scheduled` handler in `index.ts` for telemetry aggregation.
 
 ## Rate Limiting & Payload Limits
 
@@ -87,6 +88,7 @@ tsconfig.json
 - **Auth rate limit**: `GET /auth/google` — 20/hour per IP. KV key: `rl:auth:ip:<ip>`.
 - **Project creation**: hard cap 20/user (D1 count); 5/hour per user. KV key: `rl:projects:create:<userId>`.
 - **Telemetry ingest**: 1000/hour per project. KV key: `rl:telemetry:<projectId>`.
+- **API key creation**: max 10 keys per user (hard cap in auth-service).
 - KV binding name: `KV` (configured in `wrangler.toml` under `[[kv_namespaces]]`)
 
 ## D1 Schema
