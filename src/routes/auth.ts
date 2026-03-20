@@ -54,7 +54,8 @@ auth.get("/auth/google/callback", async (c) => {
   const { code, state, error } = c.req.query();
 
   if (error) {
-    return c.redirect("https://ecoapi.dev/auth/error?reason=denied", 302);
+    const frontendUrl = c.env.FRONTEND_URL ?? 'https://recost.dev';
+    return c.redirect(`${frontendUrl}/login?error=denied`, 302);
   }
 
   if (!state || !code) {
