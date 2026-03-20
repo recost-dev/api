@@ -1,4 +1,4 @@
-# EcoAPI
+# Recost
 
 REST API for analyzing codebase API usage, estimating cost, detecting inefficiencies, and generating optimization suggestions.
 
