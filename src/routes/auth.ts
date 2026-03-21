@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../env";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { requireJwt } from "../middleware/jwt-auth";
 import { AppError } from "../utils/app-error";
 import {
@@ -32,8 +32,9 @@ const auth = new Hono<AppContext>();
 
 // GET /auth/google — redirect to Google OAuth consent screen
 auth.get("/auth/google", ipRateLimit, async (c) => {
+  const isPopup = c.req.query("popup") === "1";
   const state = crypto.randomUUID();
-  await c.env.KV.put(`oauth:state:${state}`, "1", { expirationTtl: 300 });
+  await c.env.KV.put(`oauth:state:${state}`, JSON.stringify({ popup: isPopup }), { expirationTtl: 300 });
 
   const redirectUri = new URL(c.req.url).origin + "/auth/google/callback";
   const params = new URLSearchParams({
@@ -66,6 +67,8 @@ auth.get("/auth/google/callback", async (c) => {
   if (!stored) {
     throw new AppError("INVALID_OAUTH_STATE", "Invalid or expired OAuth state", 400);
   }
+  let stateData: { popup?: boolean } = {};
+  try { stateData = JSON.parse(stored); } catch { /* legacy "1" value */ }
   await c.env.KV.delete(`oauth:state:${state}`);
 
   const redirectUri = new URL(c.req.url).origin + "/auth/google/callback";
@@ -86,8 +89,37 @@ auth.get("/auth/google/callback", async (c) => {
 
   const token = await signJwt(user.id, user.email, c.env.JWT_SECRET);
 
-  const frontendUrl = c.env.FRONTEND_URL ?? 'https://ecoapi.dev';
-  return c.redirect(`${frontendUrl}/dashboard?token=${token}`, 302);
+  const frontendUrl = c.env.FRONTEND_URL ?? 'https://recost.dev';
+  const dest = stateData.popup
+    ? `${frontendUrl}/dashboard?token=${token}&popup=1`
+    : `${frontendUrl}/dashboard?token=${token}`;
+  return c.redirect(dest, 302);
+});
+
+// POST /auth/google/code — exchange GIS authorization code for a JWT (popup flow)
+auth.post("/auth/google/code", async (c: Context<AppContext>) => {
+  const body = await c.req.json<{ code?: unknown }>();
+  if (typeof body.code !== 'string' || !body.code) {
+    throw new AppError("VALIDATION_ERROR", "code is required", 422);
+  }
+
+  const googleUser = await exchangeGoogleCode(
+    body.code,
+    'postmessage',
+    c.env.GOOGLE_CLIENT_ID,
+    c.env.GOOGLE_CLIENT_SECRET
+  );
+
+  const user = await upsertUser(
+    c.env.DB,
+    googleUser.googleId,
+    googleUser.email,
+    googleUser.name,
+    googleUser.avatarUrl
+  );
+
+  const token = await signJwt(user.id, user.email, c.env.JWT_SECRET);
+  return c.json({ data: { token } });
 });
 
 // GET /auth/me — return authenticated user's profile
