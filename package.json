@@ -1,5 +1,5 @@
 {
-  "name": "ecoapi",
+  "name": "recost-api",
   "version": "1.0.0",
   "description": "REST API for analyzing codebase web API usage, costs, and optimization suggestions.",
   "private": true,
@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "build": "tsc -p tsconfig.json",
     "deploy": "wrangler deploy",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:migrate:local": "wrangler d1 migrations apply eco-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply eco-db --remote"
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
     "typescript": "^5.8.2",
+    "vitest": "^4.1.0",
     "wrangler": "^3.90.0"
   }
 }

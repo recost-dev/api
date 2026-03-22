@@ -38,6 +38,7 @@ ReCost API turns parsed API call data into actionable diagnostics:
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start local dev server (`wrangler dev`) |
+| `npm run test` | Run unit and E2E tests (vitest) |
 | `npm run typecheck` | TypeScript type check (no emit) |
 | `npm run deploy` | Deploy to Cloudflare Workers |
 | `npm run db:migrate:local` | Apply D1 migrations locally |
@@ -50,7 +51,7 @@ src/
   index.ts                # Workers entry point (Hono app)
   env.ts                  # Shared Env/Variables/AppContext types
   config/
-    pricing.ts            # Provider pricing & keyword detection
+    pricing.ts            # METHOD_PRICING registry (provider → method → cost model), computeMonthlyCost()
     sustainability.ts     # Energy/water/CO2 constants per provider
   middleware/
     cors.ts
@@ -64,24 +65,42 @@ src/
   routes/
     health.ts             # GET /health
     projects.ts           # Projects, scans, endpoints, suggestions, graph, cost, sustainability
-    providers.ts          # GET /providers
+    providers.ts          # GET /providers, GET /providers/:name, GET /providers/:name/methods/:method
+    pricing.ts            # GET /pricing — public per-method pricing feed (used by VS Code extension)
     chat.ts               # POST /chat (Cloudflare AI / Llama 3.1 8B)
   services/
-    analysis-service.ts   # Core analysis engine (pure, sync)
+    analysis-service.ts   # Core analysis engine (pure, sync); provider + methodSignature required from extension
     project-service.ts    # All CRUD via D1 (async)
-    provider-service.ts   # Provider config lookups
-    validation-service.ts # Input validation
+    provider-service.ts   # listProviders(), getProviderMethods(), getMethodPricing()
+    validation-service.ts # Input validation — enforces provider (required) and methodSignature (optional, max 128)
   utils/
     app-error.ts
     pagination.ts
     sort.ts
+  tests/
+    analysis.test.ts      # Unit tests: pricing models, frequency tokens, suggestion logic
+    scan.test.ts          # Route tests: provider field enforcement, 400 upgrade error
+    e2e.test.ts           # E2E route tests: pricing feed, provider endpoints, scan lifecycle
 migrations/
   0001_schema.sql         # D1 table definitions
-  0002_seed.sql           # Demo project seed data
+  0002_seed.sql           # Demo project seed data (costs reflect METHOD_PRICING registry)
 wrangler.toml
 package.json
 tsconfig.json
 ```
+
+## Extension Data Contract
+
+The VS Code extension is the data source for static analysis scans. Every `ApiCallInput` in a scan payload must include:
+
+| Field | Required | Description |
+|---|---|---|
+| `provider` | ✅ | Resolved by the extension's fingerprint registry (e.g. `"openai"`, `"stripe"`) |
+| `methodSignature` | — | SDK method name (e.g. `"chat.completions.create"`). Used for per-method pricing lookup. Falls back to `DEFAULT_PER_REQUEST_COST_USD` if absent. |
+
+Provider detection no longer happens on the backend. Scans submitted without `provider` return `400 UNSUPPORTED_FORMAT` with an upgrade prompt.
+
+The `GET /pricing` endpoint serves the current `METHOD_PRICING` registry so the extension can sync prices on startup.
 
 ## API
 

@@ -7,7 +7,7 @@ export const requireAuth: MiddlewareHandler<AppContext> = async (c, next) => {
   const header = c.req.header("Authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
 
-  if (token.startsWith("eco-")) {
+  if (token.startsWith("rc-")) {
     return apiKeyAuth(c, next);
   }
 

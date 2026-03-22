@@ -3,9 +3,11 @@ export type SortOrder = "asc" | "desc";
 export interface ApiCallInput {
   file: string;
   line: number;
-  method: string;
-  url: string;
-  library: string;
+  method: string;           // HTTP method (GET, POST, etc.)
+  url: string;              // endpoint URL or path
+  provider: string;         // resolved by extension fingerprint registry
+  methodSignature?: string; // SDK method, e.g. "chat.completions.create"
+  library?: string;
   frequency?: string;
 }
 
@@ -65,6 +67,7 @@ export interface EndpointRecord {
   provider: string;
   method: string;
   url: string;
+  methodSignature?: string;
   files: string[];
   callSites: EndpointCallSite[];
   callsPerDay: number;
@@ -75,7 +78,7 @@ export interface EndpointRecord {
 export interface EndpointCallSite {
   file: string;
   line: number;
-  library: string;
+  library?: string;
   frequency?: string;
 }
 
@@ -122,11 +125,25 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
-export interface ProviderPricing {
-  name: string;
-  perCallCostUsd: number;
+export type MethodCostModel = "per_token" | "per_transaction" | "per_request" | "free";
+
+export interface MethodPricing {
+  costModel: MethodCostModel;
+  // per_token
+  inputPricePer1m?: number;
+  outputPricePer1m?: number;
+  defaultInputTokens?: number;
+  defaultOutputTokens?: number;
+  // per_transaction
+  fixedFee?: number;
+  percentageFee?: number;
+  defaultTransactionUsd?: number;
+  // per_request
+  perRequestCostUsd?: number;
   notes?: string;
 }
+
+export type MethodPricingRegistry = Record<string, Record<string, MethodPricing>>;
 
 export interface SustainabilityProviderBreakdown {
   provider: string;
