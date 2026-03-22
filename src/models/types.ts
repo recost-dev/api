@@ -122,11 +122,25 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
-export interface ProviderPricing {
-  name: string;
-  perCallCostUsd: number;
+export type MethodCostModel = "per_token" | "per_transaction" | "per_request" | "free";
+
+export interface MethodPricing {
+  costModel: MethodCostModel;
+  // per_token
+  inputPricePer1m?: number;
+  outputPricePer1m?: number;
+  defaultInputTokens?: number;
+  defaultOutputTokens?: number;
+  // per_transaction
+  fixedFee?: number;
+  percentageFee?: number;
+  defaultTransactionUsd?: number;
+  // per_request
+  perRequestCostUsd?: number;
   notes?: string;
 }
+
+export type MethodPricingRegistry = Record<string, Record<string, MethodPricing>>;
 
 export interface SustainabilityProviderBreakdown {
   provider: string;

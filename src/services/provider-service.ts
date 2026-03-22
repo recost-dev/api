@@ -1,14 +1,20 @@
-import { PROVIDER_PRICING } from "../config/pricing";
-import { ProviderPricing } from "../models/types";
+import { METHOD_PRICING } from "../config/pricing";
 import { notFound } from "../utils/app-error";
 
-export const listProviders = (): ProviderPricing[] => {
-  return Object.values(PROVIDER_PRICING);
+export interface ProviderSummary {
+  name: string;
+  methods: string[];
+}
+
+export const listProviders = (): ProviderSummary[] => {
+  return Object.entries(METHOD_PRICING).map(([name, methods]) => ({
+    name,
+    methods: Object.keys(methods)
+  }));
 };
 
-export const getProvider = (name: string): ProviderPricing => {
-  const provider = PROVIDER_PRICING[name.toLowerCase()];
-  if (!provider) throw notFound("Provider", name);
-  return provider;
+export const getProvider = (name: string): ProviderSummary => {
+  const methods = METHOD_PRICING[name.toLowerCase()];
+  if (!methods) throw notFound("Provider", name);
+  return { name, methods: Object.keys(methods) };
 };
-

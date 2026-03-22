@@ -80,11 +80,11 @@ Auth migrations start at **0005**. Next available: **0008**.
 
 | Route | Description |
 |---|---|
-| `POST /auth/keys` | Generates `eco-<64 hex>` key via `crypto.getRandomValues`, SHA-256 hashes it (stores hash only), returns plaintext key once. Max 10 keys/user (409 if exceeded). Body: `{ name }`. |
+| `POST /auth/keys` | Generates `rc-<64 hex>` key via `crypto.getRandomValues`, SHA-256 hashes it (stores hash only), returns plaintext key once. Max 10 keys/user (409 if exceeded). Body: `{ name }`. |
 | `GET /auth/keys` | Returns `[{ id, key_prefix, name, last_used_at, created_at }]` — never returns hash or plaintext. |
 | `DELETE /auth/keys/:id` | Deletes row with `WHERE id = ? AND user_id = ?` ownership check. 404 if not found. 204 on success. |
 
-Key format: `eco-` + 64 lowercase hex chars (32 random bytes). `key_prefix` = first 8 hex chars of the random part, stored at insert time.
+Key format: `rc-` + 64 lowercase hex chars (32 random bytes). `key_prefix` = first 8 hex chars of the random part, stored at insert time.
 
 ---
 
@@ -92,7 +92,7 @@ Key format: `eco-` + 64 lowercase hex chars (32 random bytes). `key_prefix` = fi
 
 **API key auth middleware + project scoping** — `src/middleware/api-key-auth.ts`, `src/middleware/require-auth.ts`, `src/utils/project-ownership.ts`
 
-- `requireAuth` middleware (applied to all `/projects/*` in `index.ts`): branches on Bearer token prefix — `eco-` → API key auth, anything else → JWT auth. No sequential fallback.
+- `requireAuth` middleware (applied to all `/projects/*` in `index.ts`): branches on Bearer token prefix — `rc-` → API key auth, anything else → JWT auth. No sequential fallback.
 - `apiKeyAuth`: SHA-256 hashes the token, looks up `api_keys` by `key_hash`, sets `userId` in context. Updates `last_used_at` fire-and-forget via `c.executionCtx.waitUntil()`.
 - `assertProjectOwnership(db, projectId, userId)`: checks `users.is_admin = 1` first (admin bypass), then `SELECT id FROM projects WHERE id = ? AND user_id = ?`. Throws 404 (not 403) to avoid leaking project existence. Called at the top of every `/projects/:id/*` handler.
 - `listProjects` now requires `userId` (always scopes to owner). Admins bypass in the route handler via `listAllProjects`.

@@ -42,8 +42,8 @@ src/
     sustainability.ts # Energy/water/CO2 constants per provider
   middleware/
     jwt-auth.ts       # requireJwt (user JWT Bearer token)
-    api-key-auth.ts   # apiKeyAuth (eco- prefixed API keys; updates last_used_at via waitUntil)
-    require-auth.ts   # requireAuth — combined: eco- prefix → apiKeyAuth, else → requireJwt
+    api-key-auth.ts   # apiKeyAuth (rc- prefixed API keys; updates last_used_at via waitUntil)
+    require-auth.ts   # requireAuth — combined: rc- prefix → apiKeyAuth, else → requireJwt
     cors.ts / rate-limit.ts / logging.ts / content-type.ts / error-handler.ts / request-id.ts
   models/
     types.ts          # TypeScript domain types (includes User)

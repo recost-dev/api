@@ -9,11 +9,7 @@ import {
   Suggestion,
   SuggestionType
 } from "../models/types";
-import {
-  DEFAULT_PER_CALL_COST_USD,
-  PROVIDER_KEYWORDS,
-  PROVIDER_PRICING
-} from "../config/pricing";
+import { computeMonthlyCost } from "../config/pricing";
 
 interface AnalysisResult {
   endpoints: EndpointRecord[];
@@ -38,23 +34,6 @@ const parseCallsPerDay = (frequency?: string): number => {
   if (!Number.isNaN(numberOnly) && numberOnly >= 0) return numberOnly;
 
   return 100;
-};
-
-const detectProvider = (url: string): string => {
-  const normalizedUrl = url.toLowerCase();
-  if (normalizedUrl.startsWith("/")) return "internal";
-
-  for (const [provider, keywords] of Object.entries(PROVIDER_KEYWORDS)) {
-    if (keywords.some((keyword) => normalizedUrl.includes(keyword))) {
-      return provider;
-    }
-  }
-
-  return "internal";
-};
-
-const getPerCallCost = (provider: string): number => {
-  return PROVIDER_PRICING[provider]?.perCallCostUsd ?? DEFAULT_PER_CALL_COST_USD;
 };
 
 const roundCurrency = (value: number): number => Number(value.toFixed(4));
@@ -90,10 +69,9 @@ export const analyzeApiCalls = (
 
   for (const [key, calls] of byEndpoint.entries()) {
     const first = calls[0];
-    const provider = detectProvider(first.url);
-    const perCallCost = getPerCallCost(provider);
+    const provider = first.library;
     const callsPerDay = calls.reduce((sum, call) => sum + parseCallsPerDay(call.frequency), 0);
-    const monthlyCost = roundCurrency(callsPerDay * perCallCost * 30);
+    const monthlyCost = roundCurrency(computeMonthlyCost(provider, undefined, callsPerDay));
     const endpointId = crypto.randomUUID();
     const statusSet: Set<EndpointStatus> = new Set(["normal"]);
     endpointStatuses.set(key, statusSet);

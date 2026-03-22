@@ -8,13 +8,13 @@ Base URL: `https://api.ecoapi.dev`
 
 **User auth** — pass as a Bearer token. Routes marked 🔑 require this. Accepts either:
 - A **JWT** obtained via Google OAuth (`GET /auth/google`)
-- An **API key** (`eco-<64 hex chars>`) created via `POST /auth/keys`
+- An **API key** (`rc-<64 hex chars>`) created via `POST /auth/keys`
 
 ```
 Authorization: Bearer <JWT-or-api-key>
 ```
 
-The server detects the token type by prefix (`eco-` = API key, anything else = JWT).
+The server detects the token type by prefix (`rc-` = API key, anything else = JWT).
 
 Routes marked 🌐 are public.
 
@@ -39,7 +39,7 @@ Returns the authenticated user's profile.
 Issues a fresh 7-day JWT. Send `Content-Type: application/json` with `{}` body. Returns `{ "data": { "token": "<new-JWT>" } }`.
 
 ### 🔑 `POST /auth/keys`
-Create a new API key. Body: `{ "name": "my-key" }` (string, max 64 chars). Returns `201` with `{ "data": { "id", "key_prefix", "name", "created_at", "key" } }`. The plaintext `key` (format: `eco-<64 hex chars>`) is shown **exactly once** — store it immediately. Max 10 keys per user; returns `409` if exceeded.
+Create a new API key. Body: `{ "name": "my-key" }` (string, max 64 chars). Returns `201` with `{ "data": { "id", "key_prefix", "name", "created_at", "key" } }`. The plaintext `key` (format: `rc-<64 hex chars>`) is shown **exactly once** — store it immediately. Max 10 keys per user; returns `409` if exceeded.
 
 ### 🔑 `GET /auth/keys`
 List all API keys for the authenticated user. Returns `{ "data": [{ "id", "key_prefix", "name", "last_used_at", "created_at" }] }`. The hash and plaintext key are never returned.
