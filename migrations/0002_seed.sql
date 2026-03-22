@@ -18,8 +18,8 @@ VALUES (
   '2024-01-01T00:00:00.000Z',
   '["00000000-0000-0000-0000-000000000003","00000000-0000-0000-0000-000000000004","00000000-0000-0000-0000-000000000005","00000000-0000-0000-0000-000000000006","00000000-0000-0000-0000-000000000007"]',
   '["00000000-0000-0000-0000-000000000008","00000000-0000-0000-0000-000000000009","00000000-0000-0000-0000-000000000010"]',
-  '{"nodes":[{"id":"00000000-0000-0000-0000-000000000003","label":"GET /api/users/:id","provider":"internal","monthlyCost":3,"callsPerDay":1000,"status":"n_plus_one_risk","group":"internal"},{"id":"00000000-0000-0000-0000-000000000004","label":"GET /api/users/:id/preferences","provider":"internal","monthlyCost":3,"callsPerDay":1000,"status":"n_plus_one_risk","group":"internal"},{"id":"00000000-0000-0000-0000-000000000005","label":"POST https://api.stripe.com/v1/payment_intents","provider":"stripe","monthlyCost":75,"callsPerDay":250,"status":"normal","group":"stripe"},{"id":"00000000-0000-0000-0000-000000000006","label":"POST https://api.sendgrid.com/v3/mail/send","provider":"sendgrid","monthlyCost":15,"callsPerDay":500,"status":"normal","group":"sendgrid"},{"id":"00000000-0000-0000-0000-000000000007","label":"POST https://api.openai.com/v1/responses","provider":"openai","monthlyCost":54,"callsPerDay":300,"status":"normal","group":"openai"}],"edges":[{"source":"src/checkout.ts","target":"00000000-0000-0000-0000-000000000003","line":47},{"source":"src/checkout.ts","target":"00000000-0000-0000-0000-000000000004","line":52},{"source":"src/payments/stripe.ts","target":"00000000-0000-0000-0000-000000000005","line":18},{"source":"src/notifications/email.ts","target":"00000000-0000-0000-0000-000000000006","line":34},{"source":"src/ai/assistant.ts","target":"00000000-0000-0000-0000-000000000007","line":26}]}',
-  '{"totalEndpoints":5,"totalCallsPerDay":3050,"totalMonthlyCost":150,"highRiskCount":2}'
+  '{"nodes":[{"id":"00000000-0000-0000-0000-000000000003","label":"GET /api/users/:id","provider":"internal","monthlyCost":3,"callsPerDay":1000,"status":"n_plus_one_risk","group":"internal"},{"id":"00000000-0000-0000-0000-000000000004","label":"GET /api/users/:id/preferences","provider":"internal","monthlyCost":3,"callsPerDay":1000,"status":"n_plus_one_risk","group":"internal"},{"id":"00000000-0000-0000-0000-000000000005","label":"POST https://api.stripe.com/v1/payment_intents","provider":"stripe","monthlyCost":13125,"callsPerDay":250,"status":"normal","group":"stripe"},{"id":"00000000-0000-0000-0000-000000000006","label":"POST https://api.sendgrid.com/v3/mail/send","provider":"sendgrid","monthlyCost":15,"callsPerDay":500,"status":"normal","group":"sendgrid"},{"id":"00000000-0000-0000-0000-000000000007","label":"POST https://api.openai.com/v1/responses","provider":"openai","monthlyCost":29.25,"callsPerDay":300,"status":"normal","group":"openai"}],"edges":[{"source":"src/checkout.ts","target":"00000000-0000-0000-0000-000000000003","line":47},{"source":"src/checkout.ts","target":"00000000-0000-0000-0000-000000000004","line":52},{"source":"src/payments/stripe.ts","target":"00000000-0000-0000-0000-000000000005","line":18},{"source":"src/notifications/email.ts","target":"00000000-0000-0000-0000-000000000006","line":34},{"source":"src/ai/assistant.ts","target":"00000000-0000-0000-0000-000000000007","line":26}]}',
+  '{"totalEndpoints":5,"totalCallsPerDay":3050,"totalMonthlyCost":13175.25,"highRiskCount":2}'
 );
 
 INSERT OR IGNORE INTO endpoints (id, project_id, scan_id, provider, method, url, files, call_sites, calls_per_day, monthly_cost, status)
@@ -49,7 +49,7 @@ VALUES
     'stripe', 'POST', 'https://api.stripe.com/v1/payment_intents',
     '["src/payments/stripe.ts"]',
     '[{"file":"src/payments/stripe.ts","line":18,"library":"fetch","frequency":"250/day"}]',
-    250, 75, 'normal'
+    250, 13125, 'normal'
   ),
   (
     '00000000-0000-0000-0000-000000000006',
@@ -67,7 +67,7 @@ VALUES
     'openai', 'POST', 'https://api.openai.com/v1/responses',
     '["src/ai/assistant.ts"]',
     '[{"file":"src/ai/assistant.ts","line":26,"library":"fetch","frequency":"per-session"}]',
-    300, 54, 'normal'
+    300, 29.25, 'normal'
   );
 
 INSERT OR IGNORE INTO suggestions (id, project_id, scan_id, type, severity, affected_endpoints, affected_files, estimated_monthly_savings, description, code_fix)

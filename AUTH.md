@@ -51,7 +51,7 @@ Auth migrations start at **0005**. Next available: **0008**.
 | Route | Description |
 |---|---|
 | `GET /auth/google` | Builds Google OAuth URL, stores CSRF state in KV (`oauth:state:<uuid>`, TTL 300s), redirects. Rate limited 20/IP/hour via `rl:auth:ip:<ip>` KV key. |
-| `GET /auth/google/callback` | Validates state (single-use, deleted after check), exchanges code, upserts user, issues JWT, redirects to `https://ecoapi.dev/dashboard?token=<JWT>`. Error → `https://ecoapi.dev/auth/error?reason=denied`. |
+| `GET /auth/google/callback` | Validates state (single-use, deleted after check), exchanges code, upserts user, issues JWT, redirects to `https://recost.dev/dashboard?token=<JWT>`. Error → `https://recost.dev/auth/error?reason=denied`. |
 | `GET /auth/me` | Returns `{ data: User }` — requires JWT. |
 | `POST /auth/refresh` | Returns fresh JWT — requires JWT + `Content-Type: application/json`. |
 

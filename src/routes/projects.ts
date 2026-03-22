@@ -118,6 +118,22 @@ app.post("/projects/:id/scans", async (c) => {
   const body = await c.req.json().catch(() => {
     throw new AppError("MALFORMED_JSON", "Malformed JSON request body", 400);
   });
+  if (Array.isArray(body?.apiCalls)) {
+    const missingProvider = (body.apiCalls as unknown[]).some(
+      (call) => {
+        if (!call || typeof call !== "object") return true;
+        const { provider } = call as Record<string, unknown>;
+        return provider === undefined || provider === null || (typeof provider === "string" && provider.trim() === "");
+      }
+    );
+    if (missingProvider) {
+      throw new AppError(
+        "UNSUPPORTED_FORMAT",
+        "Each API call must include a 'provider' field. Update your extension to the latest version.",
+        400
+      );
+    }
+  }
   const input = validateScanInput(body);
   const scan = await createScan(c.env.DB, c.req.param("id"), input.apiCalls);
   return c.json({ data: scan }, 201);

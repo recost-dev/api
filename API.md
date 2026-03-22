@@ -1,6 +1,6 @@
-# EcoAPI — API Reference
+# ReCost — API Reference
 
-Base URL: `https://api.ecoapi.dev`
+Base URL: `https://api.recost.dev`
 
 ---
 
@@ -26,7 +26,7 @@ Routes marked 🌐 are public.
 Redirects to Google's OAuth consent screen. Rate limited to 20 requests/IP/hour.
 
 ### 🌐 `GET /auth/google/callback`
-OAuth callback — handled automatically by Google's redirect. On success, redirects to `https://ecoapi.dev/dashboard?token=<JWT>`. On failure (user denied access), redirects to `https://ecoapi.dev/auth/error?reason=denied` — the frontend must handle this route.
+OAuth callback — handled automatically by Google's redirect. On success, redirects to `https://recost.dev/dashboard?token=<JWT>`. On failure (user denied access), redirects to `https://recost.dev/auth/error?reason=denied` — the frontend must handle this route.
 
 ### 🔑 `GET /auth/me`
 Returns the authenticated user's profile.
@@ -55,8 +55,101 @@ Revoke an API key by ID. Returns `204` on success, `404` if not found or not own
 Check if the API is up.
 
 ```bash
-curl https://api.ecoapi.dev/health
+curl https://api.recost.dev/health
 ```
+
+---
+
+## Pricing
+
+### 🌐 `GET /pricing`
+Returns current per-method pricing for all supported providers. Used by the VS Code extension to sync pricing data on startup. No auth required. Cached at the edge for 1 hour (`Cache-Control: public, max-age=3600`).
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "updatedAt": "2026-03-22T00:00:00Z",
+  "providers": {
+    "openai": {
+      "methods": {
+        "chat.completions.create": {
+          "costModel": "per_token",
+          "inputPricePer1m": 2.5,
+          "outputPricePer1m": 10.0,
+          "notes": "GPT-4o pricing (as of 2025)"
+        },
+        "embeddings.create": {
+          "costModel": "per_token",
+          "inputPricePer1m": 0.02,
+          "notes": "text-embedding-3-small pricing"
+        }
+      }
+    },
+    "stripe": {
+      "methods": {
+        "paymentIntents.create": {
+          "costModel": "per_transaction",
+          "fixedFee": 0.3,
+          "percentageFee": 2.9,
+          "notes": "Standard card processing: $0.30 + 2.9%"
+        },
+        "customers.create": {
+          "costModel": "free",
+          "notes": "Creating customers is free"
+        }
+      }
+    }
+  }
+}
+```
+
+Fields `defaultInputTokens`, `defaultOutputTokens`, and `defaultTransactionUsd` are stripped from this response — those are backend-only estimates. The extension uses its own bundled defaults.
+
+---
+
+## Providers
+
+All provider endpoints are public (🌐) — no auth required.
+
+### 🌐 `GET /providers`
+List all supported providers with the number of priced methods each has. Supports pagination.
+
+```json
+{
+  "data": [
+    { "name": "openai", "methodCount": 5 },
+    { "name": "anthropic", "methodCount": 2 },
+    { "name": "stripe", "methodCount": 5 }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 11, "totalPages": 1, "hasNext": false, "hasPrev": false }
+}
+```
+
+### 🌐 `GET /providers/:name`
+Returns full method-level pricing for a provider. `404` if the provider is not in the registry.
+
+```json
+{
+  "data": {
+    "name": "openai",
+    "methods": {
+      "chat.completions.create": { "costModel": "per_token", "inputPricePer1m": 2.5, "outputPricePer1m": 10.0, "notes": "GPT-4o pricing (as of 2025)" },
+      "embeddings.create": { "costModel": "per_token", "inputPricePer1m": 0.02 }
+    }
+  }
+}
+```
+
+### 🌐 `GET /providers/:name/methods/:method`
+Returns pricing for a single method. `404` if either the provider or the method is not registered.
+
+```json
+{
+  "data": { "costModel": "per_token", "inputPricePer1m": 2.5, "outputPricePer1m": 10.0, "defaultInputTokens": 500, "defaultOutputTokens": 200, "notes": "GPT-4o pricing (as of 2025)" }
+}
+```
+
+> **Removed:** `GET /providers/:name` no longer returns a flat `{ name, methods: string[] }` list. It now returns full pricing details. Clients that only need provider names should use `GET /providers`.
 
 ---
 
@@ -68,7 +161,7 @@ All `/projects/*` routes require user auth (JWT or API key). Projects are scoped
 Create a new project. Auto-assigns to authenticated user. Limits: 20 projects total, 5 creations/hour.
 
 ```bash
-curl -X POST https://api.ecoapi.dev/projects \
+curl -X POST https://api.recost.dev/projects \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-app", "description": "optional"}'
@@ -82,7 +175,7 @@ Response: `201` with the created project including its `id`.
 List projects owned by the authenticated user (admins see all).
 
 ```bash
-curl https://api.ecoapi.dev/projects \
+curl https://api.recost.dev/projects \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -97,7 +190,7 @@ Get a single project. Returns 404 if not owned by the authenticated user.
 Update a project's name or description.
 
 ```bash
-curl -X PATCH https://api.ecoapi.dev/projects/<id> \
+curl -X PATCH https://api.recost.dev/projects/<id> \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "new-name"}'
@@ -109,7 +202,7 @@ curl -X PATCH https://api.ecoapi.dev/projects/<id> \
 Delete a project and all its data.
 
 ```bash
-curl -X DELETE https://api.ecoapi.dev/projects/<id> \
+curl -X DELETE https://api.recost.dev/projects/<id> \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -118,7 +211,7 @@ curl -X DELETE https://api.ecoapi.dev/projects/<id> \
 ## Telemetry (SDK → API)
 
 ### 🔑 `POST /projects/:id/telemetry`
-Ingest a WindowSummary payload from the SDK. Called automatically by `@ecoapi/node` and `ecoapi` (Python). Pass your API key as the Bearer token. Rate limited to 1000 ingests/hour per project.
+Ingest a WindowSummary payload from the SDK. Called automatically by `@recost/node` and `recost` (Python). Pass your API key as the Bearer token. Rate limited to 1000 ingests/hour per project.
 
 Returns `202 { "status": "accepted", "windowId": "..." }`.
 
@@ -137,7 +230,7 @@ Aggregated usage data for dashboards. Grouped by day by default.
 | `provider` | — | Filter by provider name |
 
 ```bash
-curl "https://api.ecoapi.dev/projects/<id>/analytics?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z"
+curl "https://api.recost.dev/projects/<id>/analytics?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z"
 ```
 
 ---
@@ -152,7 +245,7 @@ Raw recent flush windows. Useful for debugging or live feeds.
 | `environment` | — | — |
 
 ```bash
-curl "https://api.ecoapi.dev/projects/<id>/telemetry/recent?limit=20"
+curl "https://api.recost.dev/projects/<id>/telemetry/recent?limit=20"
 ```
 
 ---

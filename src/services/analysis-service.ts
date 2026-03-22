@@ -21,6 +21,17 @@ interface AnalysisResult {
 const parseCallsPerDay = (frequency?: string): number => {
   if (!frequency) return 100;
   const normalized = frequency.trim().toLowerCase();
+
+  // AST scanner Phase 2 frequency classifications
+  if (normalized === "single") return 1;
+  if (normalized === "bounded-loop") return 100;
+  if (normalized === "unbounded-loop") return 1000;
+  if (normalized === "parallel") return 500;
+  if (normalized === "polling") return 2880; // once per 30 seconds × 24 hours
+  if (normalized === "conditional") return 50;
+  if (normalized === "cache-guarded") return 10;
+
+  // Legacy formats (kept for backward compatibility during transition)
   if (normalized === "per-request") return 1000;
   if (normalized === "per-session") return 300;
   if (normalized === "hourly") return 24;
@@ -69,9 +80,10 @@ export const analyzeApiCalls = (
 
   for (const [key, calls] of byEndpoint.entries()) {
     const first = calls[0];
-    const provider = first.library;
+    const provider = first.provider;
+    const methodSignature = first.methodSignature;
     const callsPerDay = calls.reduce((sum, call) => sum + parseCallsPerDay(call.frequency), 0);
-    const monthlyCost = roundCurrency(computeMonthlyCost(provider, undefined, callsPerDay));
+    const monthlyCost = roundCurrency(computeMonthlyCost(provider, methodSignature, callsPerDay));
     const endpointId = crypto.randomUUID();
     const statusSet: Set<EndpointStatus> = new Set(["normal"]);
     endpointStatuses.set(key, statusSet);
@@ -84,6 +96,7 @@ export const analyzeApiCalls = (
       provider,
       method: first.method.toUpperCase(),
       url: first.url,
+      ...(methodSignature !== undefined ? { methodSignature } : {}),
       files: Array.from(new Set(calls.map((call) => call.file))),
       callSites: calls.map((call) => ({
         file: call.file,
@@ -257,4 +270,3 @@ export const analyzeApiCalls = (
     summary
   };
 };
-

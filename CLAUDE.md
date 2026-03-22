@@ -38,7 +38,7 @@ src/
   index.ts            # Workers entry point (Hono app, export default)
   env.ts              # Shared Env/Variables/AppContext types
   config/
-    pricing.ts        # Provider pricing & keyword detection
+    pricing.ts        # METHOD_PRICING registry, computeMonthlyCost(), DEFAULT_PER_REQUEST_COST_USD
     sustainability.ts # Energy/water/CO2 constants per provider
   middleware/
     jwt-auth.ts       # requireJwt (user JWT Bearer token)
@@ -49,12 +49,14 @@ src/
     types.ts          # TypeScript domain types (includes User)
   routes/
     auth.ts           # /auth/* — Google OAuth + JWT session + API key CRUD
+    pricing.ts        # GET /pricing — public per-method pricing feed for the VS Code extension
     health.ts / projects.ts / providers.ts / chat.ts / telemetry.ts
   services/
     auth-service.ts        # signJwt, verifyJwt, exchangeGoogleCode, upsertUser, getUserById, createApiKey, listApiKeys, deleteApiKey
-    analysis-service.ts    # Core analysis engine (pure, sync)
+    analysis-service.ts    # Core analysis engine (pure, sync); uses provider + methodSignature from extension
     project-service.ts     # All CRUD via D1 (async)
-    provider-service.ts / validation-service.ts / telemetry-service.ts / rollup-service.ts
+    provider-service.ts    # listProviders(), getProviderMethods(), getMethodPricing() — reads METHOD_PRICING
+    validation-service.ts / telemetry-service.ts / rollup-service.ts
   utils/              # AppError, pagination, sort helpers, project-ownership.ts
 migrations/
   0001_schema.sql     # projects, scans, endpoints, suggestions
@@ -75,7 +77,7 @@ tsconfig.json
 - Services are stateless async functions; no module-level state
 - JSON columns store arrays/objects (files, callSites, graph, summary, etc.)
 - `deleteProject` manually cascades: deletes suggestions → endpoints → scans → project in a `db.batch()`
-- `analyzeApiCalls` in `analysis-service.ts` is pure synchronous logic — no DB access
+- `analyzeApiCalls` in `analysis-service.ts` is pure synchronous logic — no DB access. Provider and `methodSignature` come from the extension's fingerprint registry (required in `ApiCallInput`). Cost is computed via `computeMonthlyCost(provider, methodSignature, callsPerDay)` in `config/pricing.ts`.
 - `crypto.randomUUID()` is used as a global (no import needed in Workers runtime)
 - All `/projects/*` routes are protected by `requireAuth` (applied in `index.ts`). Every `/:id/*` handler calls `assertProjectOwnership(db, projectId, userId)` from `utils/project-ownership.ts` — throws 404 (not 403) if the user doesn't own the project. Admins (`is_admin = 1`) bypass ownership checks.
 - `listProjects` always scopes by `userId`. Admins use `listAllProjects` (called in the route handler after checking `user.isAdmin`).

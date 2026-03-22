@@ -23,6 +23,8 @@ const validateApiCall = (value: unknown, index: number): ApiCallInput => {
   const line = call.line;
   const method = call.method;
   const url = call.url;
+  const provider = call.provider;
+  const methodSignature = call.methodSignature;
   const library = call.library;
   const frequency = call.frequency;
 
@@ -41,11 +43,20 @@ const validateApiCall = (value: unknown, index: number): ApiCallInput => {
   if (typeof url !== "string" || url.trim() === "") {
     fieldErrors.push({ field: `apiCalls[${index}].url`, message: "url is required." });
   }
-  if (typeof library !== "string" || library.trim() === "") {
-    fieldErrors.push({
-      field: `apiCalls[${index}].library`,
-      message: "library is required."
-    });
+  if (typeof provider !== "string" || provider.trim() === "") {
+    fieldErrors.push({ field: `apiCalls[${index}].provider`, message: "provider is required." });
+  } else if (provider.trim().length > 64) {
+    fieldErrors.push({ field: `apiCalls[${index}].provider`, message: "provider must be 64 characters or fewer." });
+  }
+  if (methodSignature !== undefined) {
+    if (typeof methodSignature !== "string" || methodSignature.trim() === "") {
+      fieldErrors.push({ field: `apiCalls[${index}].methodSignature`, message: "methodSignature must be a non-empty string when provided." });
+    } else if (methodSignature.trim().length > 128) {
+      fieldErrors.push({ field: `apiCalls[${index}].methodSignature`, message: "methodSignature must be 128 characters or fewer." });
+    }
+  }
+  if (library !== undefined && typeof library !== "string") {
+    fieldErrors.push({ field: `apiCalls[${index}].library`, message: "library must be a string when provided." });
   }
   if (frequency !== undefined && typeof frequency !== "string") {
     fieldErrors.push({
@@ -65,7 +76,9 @@ const validateApiCall = (value: unknown, index: number): ApiCallInput => {
     line: line as number,
     method: (method as string).toUpperCase(),
     url: url as string,
-    library: library as string,
+    provider: (provider as string).trim().toLowerCase(),
+    methodSignature: methodSignature !== undefined ? (methodSignature as string).trim() : undefined,
+    library: library !== undefined ? (library as string) : undefined,
     frequency: frequency as string | undefined
   };
 };

@@ -3,9 +3,11 @@ export type SortOrder = "asc" | "desc";
 export interface ApiCallInput {
   file: string;
   line: number;
-  method: string;
-  url: string;
-  library: string;
+  method: string;           // HTTP method (GET, POST, etc.)
+  url: string;              // endpoint URL or path
+  provider: string;         // resolved by extension fingerprint registry
+  methodSignature?: string; // SDK method, e.g. "chat.completions.create"
+  library?: string;
   frequency?: string;
 }
 
@@ -65,6 +67,7 @@ export interface EndpointRecord {
   provider: string;
   method: string;
   url: string;
+  methodSignature?: string;
   files: string[];
   callSites: EndpointCallSite[];
   callsPerDay: number;
@@ -75,7 +78,7 @@ export interface EndpointRecord {
 export interface EndpointCallSite {
   file: string;
   line: number;
-  library: string;
+  library?: string;
   frequency?: string;
 }
 
