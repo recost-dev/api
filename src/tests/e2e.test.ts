@@ -261,8 +261,8 @@ describe("GET /providers/:name/methods/:method", () => {
     expect(res.status).toBe(200);
     const json = await res.json() as any;
     expect(json.data.costModel).toBe("per_token");
-    expect(json.data.inputPricePer1m).toBe(2.5);
-    expect(json.data.outputPricePer1m).toBe(10.0);
+    expect(json.data.inputPricePer1M).toBe(2.5);
+    expect(json.data.outputPricePer1M).toBe(10.0);
   });
 
   it("returns specific method pricing for stripe paymentIntents.create", async () => {
@@ -272,7 +272,7 @@ describe("GET /providers/:name/methods/:method", () => {
     const json = await res.json() as any;
     expect(json.data.costModel).toBe("per_transaction");
     expect(json.data.fixedFee).toBe(0.3);
-    expect(json.data.percentageFee).toBe(2.9);
+    expect(json.data.percentageFee).toBe(0.029);
   });
 
   it("returns 404 for a method not in registry", async () => {

@@ -45,7 +45,7 @@ describe("cost model: per_token (OpenAI chat.completions.create)", () => {
 
 describe("cost model: per_transaction (Stripe paymentIntents.create)", () => {
   it("computes monthly cost from fixed + percentage fee at 250 calls/day", () => {
-    // costPerCall = 0.30 + (50 * 2.9 / 100) = 0.30 + 1.45 = 1.75
+    // costPerCall = 0.30 + (50 * 0.029) = 0.30 + 1.45 = 1.75
     // monthly     = 1.75 * 250 * 30 = 13125
     const result = analyzeApiCalls("p", "s", [
       makeCall({

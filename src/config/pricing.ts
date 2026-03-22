@@ -6,24 +6,24 @@ export const METHOD_PRICING: MethodPricingRegistry = {
   openai: {
     "chat.completions.create": {
       costModel: "per_token",
-      inputPricePer1m: 2.5,
-      outputPricePer1m: 10.0,
+      inputPricePer1M: 2.5,
+      outputPricePer1M: 10.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "GPT-4o pricing (as of 2025)"
     },
     "responses.create": {
       costModel: "per_token",
-      inputPricePer1m: 2.5,
-      outputPricePer1m: 10.0,
+      inputPricePer1M: 2.5,
+      outputPricePer1M: 10.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Responses API — same model pricing as chat.completions.create (GPT-4o)"
     },
     "embeddings.create": {
       costModel: "per_token",
-      inputPricePer1m: 0.02,
-      outputPricePer1m: 0,
+      inputPricePer1M: 0.02,
+      outputPricePer1M: 0,
       defaultInputTokens: 500,
       defaultOutputTokens: 0,
       notes: "text-embedding-3-small pricing"
@@ -43,16 +43,16 @@ export const METHOD_PRICING: MethodPricingRegistry = {
   anthropic: {
     "messages.create": {
       costModel: "per_token",
-      inputPricePer1m: 3.0,
-      outputPricePer1m: 15.0,
+      inputPricePer1M: 3.0,
+      outputPricePer1M: 15.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Claude Sonnet 4 pricing"
     },
     "messages.batches.create": {
       costModel: "per_token",
-      inputPricePer1m: 1.5,
-      outputPricePer1m: 7.5,
+      inputPricePer1M: 1.5,
+      outputPricePer1M: 7.5,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Batch API — 50% discount on messages.create"
@@ -63,7 +63,7 @@ export const METHOD_PRICING: MethodPricingRegistry = {
     "paymentIntents.create": {
       costModel: "per_transaction",
       fixedFee: 0.3,
-      percentageFee: 2.9,
+      percentageFee: 0.029,
       defaultTransactionUsd: 50,
       notes: "Standard card processing: $0.30 + 2.9%"
     },
@@ -78,14 +78,14 @@ export const METHOD_PRICING: MethodPricingRegistry = {
     "subscriptions.create": {
       costModel: "per_transaction",
       fixedFee: 0.3,
-      percentageFee: 2.9,
+      percentageFee: 0.029,
       defaultTransactionUsd: 50,
       notes: "Subscription billing uses same processing fees as PaymentIntents"
     },
     "charges.create": {
       costModel: "per_transaction",
       fixedFee: 0.3,
-      percentageFee: 2.9,
+      percentageFee: 0.029,
       defaultTransactionUsd: 50,
       notes: "Legacy Charges API: $0.30 + 2.9%"
     }
@@ -135,16 +135,16 @@ export const METHOD_PRICING: MethodPricingRegistry = {
   "aws-bedrock": {
     invokeModel: {
       costModel: "per_token",
-      inputPricePer1m: 3.0,
-      outputPricePer1m: 15.0,
+      inputPricePer1M: 3.0,
+      outputPricePer1M: 15.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Claude Sonnet via Bedrock on-demand pricing"
     },
     converseCommand: {
       costModel: "per_token",
-      inputPricePer1m: 3.0,
-      outputPricePer1m: 15.0,
+      inputPricePer1M: 3.0,
+      outputPricePer1M: 15.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Bedrock Converse API with Claude Sonnet pricing"
@@ -154,8 +154,8 @@ export const METHOD_PRICING: MethodPricingRegistry = {
   "google-gemini": {
     generateContent: {
       costModel: "per_token",
-      inputPricePer1m: 0.075,
-      outputPricePer1m: 0.3,
+      inputPricePer1M: 0.075,
+      outputPricePer1M: 0.3,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Gemini 2.0 Flash pricing"
@@ -165,16 +165,16 @@ export const METHOD_PRICING: MethodPricingRegistry = {
   cohere: {
     chat: {
       costModel: "per_token",
-      inputPricePer1m: 2.5,
-      outputPricePer1m: 10.0,
+      inputPricePer1M: 2.5,
+      outputPricePer1M: 10.0,
       defaultInputTokens: 500,
       defaultOutputTokens: 200,
       notes: "Command R+ pricing"
     },
     embed: {
       costModel: "per_token",
-      inputPricePer1m: 0.1,
-      outputPricePer1m: 0,
+      inputPricePer1M: 0.1,
+      outputPricePer1M: 0,
       defaultInputTokens: 500,
       defaultOutputTokens: 0,
       notes: "Embed v3 pricing"
@@ -230,13 +230,13 @@ export const computeMonthlyCost = (
       switch (pricing.costModel) {
         case "per_token":
           costPerCall =
-            ((pricing.defaultInputTokens ?? 0) / 1_000_000) * (pricing.inputPricePer1m ?? 0) +
-            ((pricing.defaultOutputTokens ?? 0) / 1_000_000) * (pricing.outputPricePer1m ?? 0);
+            ((pricing.defaultInputTokens ?? 0) / 1_000_000) * (pricing.inputPricePer1M ?? 0) +
+            ((pricing.defaultOutputTokens ?? 0) / 1_000_000) * (pricing.outputPricePer1M ?? 0);
           break;
         case "per_transaction":
           costPerCall =
             (pricing.fixedFee ?? 0) +
-            (pricing.defaultTransactionUsd ?? 0) * ((pricing.percentageFee ?? 0) / 100);
+            (pricing.defaultTransactionUsd ?? 0) * (pricing.percentageFee ?? 0);
           break;
         case "per_request":
           costPerCall = pricing.perRequestCostUsd ?? 0;

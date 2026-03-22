@@ -14,11 +14,11 @@ app.get("/pricing", (c) => {
     const strippedMethods: Record<string, unknown> = {};
 
     for (const [methodName, pricing] of Object.entries(methods)) {
-      const { costModel, inputPricePer1m, outputPricePer1m, fixedFee, percentageFee, perRequestCostUsd, notes } = pricing;
+      const { costModel, inputPricePer1M, outputPricePer1M, fixedFee, percentageFee, perRequestCostUsd, notes } = pricing;
 
       const entry: Record<string, unknown> = { costModel };
-      if (inputPricePer1m !== undefined) entry.inputPricePer1m = inputPricePer1m;
-      if (outputPricePer1m !== undefined && outputPricePer1m !== 0) entry.outputPricePer1m = outputPricePer1m;
+      if (inputPricePer1M !== undefined) entry.inputPricePer1M = inputPricePer1M;
+      if (outputPricePer1M !== undefined && outputPricePer1M !== 0) entry.outputPricePer1M = outputPricePer1M;
       if (fixedFee !== undefined) entry.fixedFee = fixedFee;
       if (percentageFee !== undefined) entry.percentageFee = percentageFee;
       if (perRequestCostUsd !== undefined) entry.perRequestCostUsd = perRequestCostUsd;

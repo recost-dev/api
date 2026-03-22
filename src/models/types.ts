@@ -130,8 +130,8 @@ export type MethodCostModel = "per_token" | "per_transaction" | "per_request" | 
 export interface MethodPricing {
   costModel: MethodCostModel;
   // per_token
-  inputPricePer1m?: number;
-  outputPricePer1m?: number;
+  inputPricePer1M?: number;
+  outputPricePer1M?: number;
   defaultInputTokens?: number;
   defaultOutputTokens?: number;
   // per_transaction
